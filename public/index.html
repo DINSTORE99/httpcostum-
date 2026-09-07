@@ -1,52 +1,35 @@
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >  <title>BONGKAR CONFIG HC</title>  <link
-    rel="stylesheet"
-    href="/style.css"
-  >
-</head><body>  <main class="container"><!-- HEADER -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BONGKAR CONFIG HC</title>
+  <link rel="stylesheet" href="/style.css">
+</head><body>  <main class="container"><header class="header">
+  <div class="logo">🥒</div>
 
-<header class="header">
+  <h1>BONGKAR CONFIG HC</h1>
 
-  <div class="logo">
-    🔐
-  </div>
-
-  <h1>
-    BONGKAR CONFIG HC
-  </h1>
-
-  <p>
-    HTTP Custom Config Decryptor
-  </p>
-
+  <p>HTTP Custom Config Decryptor</p>
 </header>
 
 
-<!-- UPLOAD -->
-
 <section class="upload-card">
 
-  <div
+  <!-- LABEL LANGSUNG MEMBUKA FILE PICKER -->
+  <label
     class="upload-box"
     id="uploadBox"
+    for="fileInput"
   >
 
     <div class="upload-icon">
       📁
     </div>
 
-    <h2>
-      Pilih File HC
-    </h2>
+    <h2>Pilih File HC</h2>
 
     <p>
-      Klik untuk memilih file atau
-      drag &amp; drop di sini
+      Klik di sini untuk memilih file
     </p>
 
     <span class="format">
@@ -64,22 +47,20 @@
       class="file-name"
     ></div>
 
-  </div>
+  </label>
 
 
   <button
+    type="button"
     id="decryptBtn"
     class="decrypt-btn"
     disabled
   >
-    <span>🔓</span>
-    BONGKAR CONFIG
+    🔓 BONGKAR CONFIG
   </button>
 
 </section>
 
-
-<!-- STATUS -->
 
 <div
   id="status"
@@ -87,15 +68,11 @@
 ></div>
 
 
-<!-- RESULT -->
-
 <section
   id="result"
   class="result"
 ></section>
 
-
-<!-- FOOTER -->
 
 <footer>
   BONGKAR CONFIG HC
