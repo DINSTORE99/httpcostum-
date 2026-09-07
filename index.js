@@ -10,7 +10,7 @@ const app = express();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024
+    fileSize: 20 * 1024 * 1024
   }
 });
 
@@ -18,65 +18,94 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
-app.post("/api/decrypt", upload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: "File tidak ditemukan"
-      });
-    }
 
-    const filename = req.file.originalname.toLowerCase();
+app.post(
+  "/api/decrypt",
+  upload.single("file"),
+  async (req, res) => {
 
-    let result;
+    try {
 
-    if (filename.endsWith(".hc")) {
-      result = await hcDecrypt(req.file.buffer);
-    } else if (filename.endsWith(".ehi")) {
-      result = await ehiDecrypt(req.file.buffer);
-    } else {
-      return res.status(400).json({
-        success: false,
-        error: "Format file harus .hc atau .ehi"
-      });
-    }
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: "File tidak ditemukan"
+        });
+      }
 
-    if (!result) {
+      const filename =
+        req.file.originalname.toLowerCase();
+
+      let result;
+
+      if (filename.endsWith(".hc")) {
+
+        result =
+          await hcDecrypt(
+            req.file.buffer
+          );
+
+      } else if (
+        filename.endsWith(".ehi")
+      ) {
+
+        result =
+          await ehiDecrypt(
+            req.file.buffer
+          );
+
+      } else {
+
+        return res.status(400).json({
+          success: false,
+          error: "Format harus .hc atau .ehi"
+        });
+
+      }
+
+      return res.json(result);
+
+    } catch (error) {
+
+      console.error(
+        "DECRYPT ERROR:",
+        error
+      );
+
       return res.status(500).json({
         success: false,
-        error: "Decryptor tidak mengembalikan hasil"
+        error:
+          error.message ||
+          "Decrypt gagal"
       });
+
     }
-
-    return res.json(result);
-
-  } catch (error) {
-    console.error("API DECRYPT ERROR:");
-    console.error(error);
-
-    return res.status(500).json({
-      success: false,
-      error: error.message || "Terjadi kesalahan saat decrypt",
-      stack: process.env.NODE_ENV === "development"
-        ? error.stack
-        : undefined
-    });
   }
-});
+);
 
-// Error handler multer
-app.use((err, req, res, next) => {
-  console.error("SERVER ERROR:", err);
 
-  if (res.headersSent) {
-    return next(err);
-  }
+app.get("/api/status", (req, res) => {
 
-  return res.status(500).json({
-    success: false,
-    error: err.message || "Internal server error"
+  res.json({
+    success: true,
+    service: "DINSTORE Decryptor",
+    formats: [
+      ".hc",
+      ".ehi"
+    ]
   });
+
 });
 
-module.exports = app;
+
+const PORT =
+  process.env.PORT || 3000;
+
+app.listen(
+  PORT,
+  () => {
+    console.log(
+      `DINSTORE Decryptor running on port ${PORT}`
+    );
+  }
+);
