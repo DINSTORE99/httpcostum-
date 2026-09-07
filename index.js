@@ -10,7 +10,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ==========================================
-// 1. OBJEK & FUNGSI DEKRIPTOR HC (URL / DECRYPT)
+// OBJEK & FUNGSI DEKRIPTOR HTTP CUSTOM (.HC)
 // ==========================================
 const HC = {
   initialXor: Buffer.from("e382e4b8adc386f09f9293", "hex"),
@@ -277,63 +277,22 @@ function hcParseModern(buffer){
   }catch(e){ return {success:false,error:e.message||"Decrypt error"}; }
 }
 
-
 // ==========================================
-// 2. ENDPOINT API EXPRESS
+// ENDPOINT API EXPRESS
 // ==========================================
-
-// Endpoint API untuk Mendapatkan Daftar Operator dari Folder /bug
-app.get('/api/operators', (req, res) => {
-  try {
-    const bugDir = path.join(__dirname, 'bug');
-    if (!fs.existsSync(bugDir)) return res.json({ success: true, operators: [] });
-    const files = fs.readdirSync(bugDir);
-    const operators = files.filter(f => f.endsWith('.json')).map(file => path.basename(file, '.json'));
-    res.json({ success: true, operators });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-// Endpoint API untuk Dekripsi File .hc
 app.post('/api/decrypt', upload.single('file'), (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ success: false, error: "File .hc tidak ditemukan" });
-    const result = hcParseModern(req.file.buffer);
-    res.json(result);
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-// Endpoint API untuk Generate Config berdasarkan Bug Operator
-app.post('/api/generate', (req, res) => {
-  try {
-    const { operator, credential } = req.body;
-    if (!operator || !credential) return res.status(400).json({ success: false, error: "Operator dan kredensial wajib diisi!" });
-
-    const bugFilePath = path.join(__dirname, 'bug', `${operator.toLowerCase()}.json`);
-    if (!fs.existsSync(bugFilePath)) {
-      return res.status(404).json({ success: false, error: `File bug untuk operator ${operator} tidak ditemukan!` });
-    }
-
-    const bugData = JSON.parse(fs.readFileSync(bugFilePath, 'utf8'));
-    const regex = /^([\w.-]+):(\d+)@([^:]+):(.+)$/;
-    const match = credential.trim().match(regex);
-    if (!match) return res.status(400).json({ success: false, error: "Format kredensial salah! Gunakan: host:port@username:password" });
-
-    const [, host, port, username, password] = match;
-    const configTemplate = new Array(HC.tokenMap.length).fill("");
+    if (!req.file) return res.status(400).json({ success: false, error: "File tidak ditemukan" });
     
-    configTemplate[0] = bugData.payload;
-    configTemplate[1] = `${host}:${port}`;
-    configTemplate[6] = `Config ${bugData.operator.toUpperCase()} by Web Tools`;
-    configTemplate[7] = `${username}:${password}@${host}:${port}`;
-    configTemplate[12] = bugData.bug;
-    configTemplate[27] = "3.0";
-
-    const rawConfigString = configTemplate.join("[splitConfig]");
-    res.json({ success: true, rawConfig: rawConfigString });
+    const filename = req.file.originalname.toLowerCase();
+    
+    if (filename.endsWith('.hc') || !filename.endsWith('.ehi')) {
+      const result = hcParseModern(req.file.buffer);
+      if (result.success) return res.json(result);
+    }
+    
+    // Fallback atau format lain (.ehi / dll)
+    res.status(400).json({ success: false, error: "Format file tidak dikenali atau memerlukan dukungan parser spesifik." });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
