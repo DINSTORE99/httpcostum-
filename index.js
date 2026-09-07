@@ -1,12 +1,12 @@
 const express = require("express");
 const multer = require("multer");
+const crypto = require("crypto");
 const path = require("path");
+const argon2 = require("argon2");
 
 const app = express();
 
-//// =========================
-//// CONFIG
-//// =========================
+const PORT = process.env.PORT || 3000;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -17,16 +17,14 @@ const upload = multer({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, "public")));
 
-app.use(
-  express.static(
-    path.join(__dirname, "public")
-  )
-);
 
-//// ==========================================
-//// OBJEK & FUNGSI DEKRIPTOR HTTP CUSTOM (.HC)
-//// ==========================================
+/* =========================================================
+   =========================================================
+                  HTTP CUSTOM (.HC)
+   =========================================================
+   ========================================================= */
 
 const HC = {
   initialXor: Buffer.from(
@@ -60,24 +58,20 @@ const HC = {
   ],
 
   jklOld: Buffer.from([
-    0xd5, 0xd4, 0xd3, 0xd2, 0xd1,
-    0xd0, 0xcf, 0xce, 0xcd, 0xcc,
-    0xbd, 0xbc, 0xbb, 0xba, 0xb9,
-    0xb8, 0xb7, 0xb6, 0xb5, 0xb4
+    0xd5,0xd4,0xd3,0xd2,0xd1,
+    0xd0,0xcf,0xce,0xcd,0xcc,
+    0xbd,0xbc,0xbb,0xba,0xb9,
+    0xb8,0xb7,0xb6,0xb5,0xb4
   ]),
 
   jklNew: Buffer.from([
-    8, 9, 10, 11, 12,
-    13, 14, 15, 17, 17,
-    5, 4, 3, 2, 1,
-    0, 255, 254, 253, 252
+    8,9,10,11,12,13,14,15,
+    17,17,5,4,3,2,1,0,
+    255,254,253,252
   ]),
 
   rstXor: Buffer.from(
-    Array.from(
-      { length: 20 },
-      (_, i) => i + 2
-    )
+    Array.from({length:20}, (_,i)=>i+2)
   ),
 
   braille:
@@ -119,20 +113,18 @@ const HC = {
   ]
 };
 
-//// =========================
-//// HELPER
-//// =========================
 
 function hcCleanHex(s) {
   if (!s) return "";
 
-  const clean = String(s)
-    .replace(/[^0-9a-f]/gi, "");
+  const clean =
+    String(s).replace(/[^0-9a-f]/gi, "");
 
   return clean.length % 2
     ? "0" + clean
     : clean;
 }
+
 
 function hcIsHex(s) {
   return !!s &&
@@ -140,10 +132,12 @@ function hcIsHex(s) {
     /^[0-9a-f]+$/i.test(String(s));
 }
 
-function hcPrintable(s, strict = false) {
+
+function hcPrintable(s, strict=false) {
   if (!s) return false;
 
-  if (s.length < 4) return true;
+  if (s.length < 4)
+    return true;
 
   let n = 0;
 
@@ -160,55 +154,60 @@ function hcPrintable(s, strict = false) {
     }
   }
 
-  return (
-    n / s.length >
-    (strict ? 0.90 : 0.80)
-  );
+  return n / s.length >
+    (strict ? 0.90 : 0.80);
 }
 
-function hcRotl32(x, n) {
+
+function hcRotl32(x,n) {
   return (
     (x << n) |
     (x >>> (32 - n))
   ) >>> 0;
 }
 
-//// =========================
-//// CHACHA
-//// =========================
 
-function hcQR(s, a, b, c, d) {
+function hcQR(s,a,b,c,d) {
 
   s[a] =
     (s[a] + s[b]) >>> 0;
 
   s[d] ^= s[a];
-  s[d] = hcRotl32(s[d], 16);
+
+  s[d] =
+    hcRotl32(s[d],16);
 
   s[c] =
     (s[c] + s[d]) >>> 0;
 
   s[b] ^= s[c];
-  s[b] = hcRotl32(s[b], 12);
+
+  s[b] =
+    hcRotl32(s[b],12);
 
   s[a] =
     (s[a] + s[b]) >>> 0;
 
   s[d] ^= s[a];
-  s[d] = hcRotl32(s[d], 8);
+
+  s[d] =
+    hcRotl32(s[d],8);
 
   s[c] =
     (s[c] + s[d]) >>> 0;
 
   s[b] ^= s[c];
-  s[b] = hcRotl32(s[b], 7);
+
+  s[b] =
+    hcRotl32(s[b],7);
 }
+
 
 function hcChaCha20(
   data,
   key,
   nonce,
-  counter = 0
+  counter=0
 ) {
 
   if (
@@ -224,10 +223,11 @@ function hcChaCha20(
     Buffer.alloc(data.length);
 
   for (
-    let off = 0,
-      block = counter >>> 0;
+    let off=0,
+        block=counter >>> 0;
     off < data.length;
-    off += 64, block++
+    off += 64,
+    block++
   ) {
 
     const st =
@@ -238,9 +238,9 @@ function hcChaCha20(
     st[2] = 0x79622d32;
     st[3] = 0x6b206574;
 
-    for (let i = 0; i < 8; i++) {
-      st[4 + i] =
-        key.readUInt32LE(i * 4);
+    for (let i=0;i<8;i++) {
+      st[4+i] =
+        key.readUInt32LE(i*4);
     }
 
     st[12] = block;
@@ -255,27 +255,27 @@ function hcChaCha20(
     const x =
       new Uint32Array(st);
 
-    for (let i = 0; i < 10; i++) {
+    for (let i=0;i<10;i++) {
 
-      hcQR(x, 0, 4, 8, 12);
-      hcQR(x, 1, 5, 9, 13);
-      hcQR(x, 2, 6, 10, 14);
-      hcQR(x, 3, 7, 11, 15);
+      hcQR(x,0,4,8,12);
+      hcQR(x,1,5,9,13);
+      hcQR(x,2,6,10,14);
+      hcQR(x,3,7,11,15);
 
-      hcQR(x, 0, 5, 10, 15);
-      hcQR(x, 1, 6, 11, 12);
-      hcQR(x, 2, 7, 8, 13);
-      hcQR(x, 3, 4, 9, 14);
+      hcQR(x,0,5,10,15);
+      hcQR(x,1,6,11,12);
+      hcQR(x,2,7,8,13);
+      hcQR(x,3,4,9,14);
     }
 
     const stream =
       Buffer.alloc(64);
 
-    for (let i = 0; i < 16; i++) {
+    for (let i=0;i<16;i++) {
 
       stream.writeUInt32LE(
         (x[i] + st[i]) >>> 0,
-        i * 4
+        i*4
       );
 
     }
@@ -286,11 +286,10 @@ function hcChaCha20(
         data.length - off
       );
 
-    for (let i = 0; i < n; i++) {
+    for (let i=0;i<n;i++) {
 
-      out[off + i] =
-        data[off + i] ^
-        stream[i];
+      out[off+i] =
+        data[off+i] ^ stream[i];
 
     }
   }
@@ -298,14 +297,11 @@ function hcChaCha20(
   return out;
 }
 
-//// =========================
-//// ABC
-//// =========================
 
 function hcABC(
   raw,
   key,
-  nonce = HC.nonce
+  nonce=HC.nonce
 ) {
 
   try {
@@ -313,16 +309,17 @@ function hcABC(
     const hex =
       hcCleanHex(raw);
 
-    if (!hex) return "";
+    if (!hex)
+      return "";
 
     const data =
-      Buffer.from(hex, "hex");
+      Buffer.from(hex,"hex");
 
     if (data.length <= 16)
       return "";
 
     return hcChaCha20(
-      data.subarray(0, -16),
+      data.subarray(0,-16),
       key,
       nonce,
       1
@@ -334,13 +331,11 @@ function hcABC(
   }
 }
 
-//// =========================
-//// Z3A
-//// =========================
 
-function hcZ3A(data, iv) {
+function hcZ3A(data,iv) {
 
-  if (!data) return "";
+  if (!data)
+    return "";
 
   const out = [];
 
@@ -371,9 +366,7 @@ function hcZ3A(data, iv) {
 
         out.push(
           (
-            (Math.floor(a / divisor) %
-              256) +
-            256
+            (Math.floor(a/divisor)%256)+256
           ) % 256
         );
 
@@ -387,9 +380,6 @@ function hcZ3A(data, iv) {
     .toString("utf8");
 }
 
-//// =========================
-//// BRAILLE
-//// =========================
 
 function hcBraille(s) {
 
@@ -398,26 +388,22 @@ function hcBraille(s) {
     const out = [];
 
     for (
-      let i = 0;
-      i < s.length - 1;
-      i += 2
+      let i=0;
+      i<s.length-1;
+      i+=2
     ) {
 
       const a =
         HC.braille.indexOf(s[i]);
 
       const b =
-        HC.braille.indexOf(s[i + 1]);
+        HC.braille.indexOf(s[i+1]);
 
-      if (
-        a < 0 ||
-        b < 0
-      ) {
+      if (a < 0 || b < 0)
         return s;
-      }
 
       out.push(
-        (a * 16 + b) & 255
+        (a*16+b)&255
       );
     }
 
@@ -431,16 +417,14 @@ function hcBraille(s) {
   }
 }
 
-//// =========================
-//// CREDENTIAL
-//// =========================
 
 function hcCredentials(
   raw,
-  isSSH = false
+  isSSH=false
 ) {
 
-  if (!raw) return raw;
+  if (!raw)
+    return raw;
 
   if (
     isSSH &&
@@ -449,39 +433,33 @@ function hcCredentials(
     raw = hcBraille(raw);
   }
 
-  const re = isSSH
-    ? /^([\w.-]+):([\d-]+)@(.+):(.+)$/
-    : /^([^:]+):(.+)$/;
+  const re =
+    isSSH
+      ? /^([\w.-]+):([\d-]+)@(.+):(.+)$/
+      : /^([^:]+):(.+)$/;
 
   const m =
     String(raw).match(re);
 
-  if (!m) return raw;
+  if (!m)
+    return raw;
 
   const u =
-    m[m.length - 2];
+    m[m.length-2];
 
   const p =
-    m[m.length - 1];
+    m[m.length-1];
 
   const uc =
     hcZ3A(
       u,
-      (
-        u.match(
-          /-?\d+\.-?\d+/g
-        ) || []
-      ).length
+      (u.match(/-?\d+\.-?\d+/g)||[]).length
     ) || u;
 
   const pc =
     hcZ3A(
       p,
-      (
-        p.match(
-          /-?\d+\.-?\d+/g
-        ) || []
-      ).length
+      (p.match(/-?\d+\.-?\d+/g)||[]).length
     ) || p;
 
   return isSSH
@@ -489,9 +467,6 @@ function hcCredentials(
     : `${uc}:${pc}`;
 }
 
-//// =========================
-//// BASE64
-//// =========================
 
 function hcB64Decode(s) {
 
@@ -501,9 +476,8 @@ function hcB64Decode(s) {
   const pad =
     x.length % 4;
 
-  if (pad) {
-    x += "=".repeat(4 - pad);
-  }
+  if (pad)
+    x += "=".repeat(4-pad);
 
   return Buffer.from(
     x,
@@ -511,13 +485,10 @@ function hcB64Decode(s) {
   );
 }
 
-//// =========================
-//// JKL
-//// =========================
 
 function hcJKL(
   input,
-  isNew = false
+  isNew=false
 ) {
 
   if (!input)
@@ -534,27 +505,20 @@ function hcJKL(
       hcB64Decode(input);
 
     for (
-      let i = 0;
-      i < data.length;
+      let i=0;
+      i<data.length;
       i++
     ) {
 
       const d = data[i];
-
-      const k =
-        key[i % 20];
+      const k = key[i%20];
 
       data[i] =
-        (
-          (
-            ((d ^ 0xff) & 0xca) |
-            (d & 0x35)
-          ) ^
-          (
-            ((k ^ 0xff) & 0xca) |
-            (k & 0x35)
-          )
-        );
+        (((d^0xff)&0xca) |
+         (d&0x35))
+        ^
+        (((k^0xff)&0xca) |
+         (k&0x35));
     }
 
     return hcB64Decode(
@@ -567,9 +531,6 @@ function hcJKL(
   }
 }
 
-//// =========================
-//// RST
-//// =========================
 
 function hcRST(input) {
 
@@ -585,14 +546,14 @@ function hcRST(input) {
       Buffer.alloc(src.length);
 
     for (
-      let i = 0;
-      i < src.length;
+      let i=0;
+      i<src.length;
       i++
     ) {
 
       x[i] =
         src[i] ^
-        HC.rstXor[i % 20];
+        HC.rstXor[i%20];
 
     }
 
@@ -607,9 +568,6 @@ function hcRST(input) {
     ) {
 
       try {
-
-        const crypto =
-          require("crypto");
 
         const d =
           crypto.createDecipheriv(
@@ -642,9 +600,6 @@ function hcRST(input) {
   return null;
 }
 
-//// =========================
-//// DECRYPT FIELD
-//// =========================
 
 function hcDecryptField(
   token,
@@ -676,7 +631,7 @@ function hcDecryptField(
 
     try {
       candidates.push(
-        Buffer.from(clean, "hex")
+        Buffer.from(clean,"hex")
       );
     } catch {}
   }
@@ -687,19 +642,13 @@ function hcDecryptField(
 
     try {
       candidates.push(
-        Buffer.from(
-          token,
-          "latin1"
-        )
+        Buffer.from(token,"latin1")
       );
     } catch {}
 
     try {
       candidates.push(
-        Buffer.from(
-          token,
-          "utf8"
-        )
+        Buffer.from(token,"utf8")
       );
     } catch {}
   }
@@ -723,7 +672,7 @@ function hcDecryptField(
       continue;
 
     const ct =
-      data.subarray(0, -16);
+      data.subarray(0,-16);
 
     for (
       const key of HC.keys
@@ -740,10 +689,8 @@ function hcDecryptField(
           ).toString("utf8");
 
         for (
-          const isNew of [
-            true,
-            false
-          ]
+          const isNew of
+          [true,false]
         ) {
 
           const out =
@@ -762,15 +709,11 @@ function hcDecryptField(
 
         if (
           (
-            hcPrintable(
-              dec,
-              true
-            ) &&
+            hcPrintable(dec,true) &&
             /HTTP|@|:|\{/.test(dec)
           ) ||
           /^[A-Za-z0-9]+$/.test(dec)
         ) {
-
           return dec;
         }
 
@@ -779,10 +722,7 @@ function hcDecryptField(
   }
 
   for (
-    const isNew of [
-      true,
-      false
-    ]
+    const isNew of [true,false]
   ) {
 
     const out =
@@ -802,13 +742,8 @@ function hcDecryptField(
   return token;
 }
 
-//// =========================
-//// INITIAL
-//// =========================
 
-function hcInitial(
-  fileBytes
-) {
+function hcInitial(fileBytes) {
 
   let latin;
 
@@ -822,7 +757,9 @@ function hcInitial(
 
   } catch {
 
-    latin = fileBytes;
+    latin =
+      fileBytes;
+
   }
 
   const out =
@@ -831,29 +768,23 @@ function hcInitial(
     );
 
   for (
-    let i = 0;
-    i < latin.length;
+    let i=0;
+    i<latin.length;
     i++
   ) {
 
     out[i] =
       latin[i] ^
       HC.initialXor[
-        i %
-        HC.initialXor.length
+        i % HC.initialXor.length
       ];
   }
 
   return out.toString("utf8");
 }
 
-//// =========================
-//// PARSER
-//// =========================
 
-function hcParseModern(
-  buffer
-) {
+function hcParseModern(buffer) {
 
   try {
 
@@ -861,10 +792,9 @@ function hcParseModern(
       !Buffer.isBuffer(buffer) ||
       !buffer.length
     ) {
-
       return {
-        success: false,
-        error: "File kosong"
+        success:false,
+        error:"File kosong"
       };
     }
 
@@ -881,10 +811,9 @@ function hcParseModern(
       !outer ||
       !outer.trim().startsWith("{")
     ) {
-
       return {
-        success: false,
-        error: "Outer decrypt gagal"
+        success:false,
+        error:"Outer decrypt gagal"
       };
     }
 
@@ -895,10 +824,9 @@ function hcParseModern(
       !obj ||
       typeof obj !== "object"
     ) {
-
       return {
-        success: false,
-        error: "JSON HC tidak valid"
+        success:false,
+        error:"JSON HC tidak valid"
       };
     }
 
@@ -909,10 +837,9 @@ function hcParseModern(
         : {};
 
     const isNew =
-      Object.prototype.hasOwnProperty.call(
-        cfg,
-        "content"
-      );
+      Object.prototype
+        .hasOwnProperty
+        .call(cfg,"content");
 
     const meta = {};
     const protections = {};
@@ -920,17 +847,11 @@ function hcParseModern(
     let target;
     let delim;
 
-    //// =========================
-    //// FORMAT BARU
-    //// =========================
-
     if (isNew) {
 
       for (
-        const [k, name] of [
-          ["b", "hwid"],
-          ["f", "area"]
-        ]
+        const [k,name] of
+        [["b","hwid"],["f","area"]]
       ) {
 
         const val =
@@ -941,7 +862,6 @@ function hcParseModern(
           );
 
         if (val) {
-
           meta[name] = val;
           protections[name] = val;
         }
@@ -953,13 +873,7 @@ function hcParseModern(
       delim =
         "[splitConfig]";
 
-    }
-
-    //// =========================
-    //// FORMAT LAMA
-    //// =========================
-
-    else {
+    } else {
 
       const a =
         obj.a &&
@@ -968,11 +882,11 @@ function hcParseModern(
           : {};
 
       for (
-        const [k, name] of [
-          ["bb", "hwid"],
-          ["e", "password"],
-          ["fe", "area"],
-          ["ed", "provider"]
+        const [k,name] of [
+          ["bb","hwid"],
+          ["e","password"],
+          ["fe","area"],
+          ["ed","provider"]
         ]
       ) {
 
@@ -990,11 +904,8 @@ function hcParseModern(
             );
 
           if (dec) {
-
             meta[name] = dec;
-
-            protections[name] =
-              dec;
+            protections[name] = dec;
           }
         }
       }
@@ -1008,13 +919,10 @@ function hcParseModern(
         a.uv;
     }
 
-    if (
-      !target ||
-      !delim
-    ) {
+    if (!target || !delim) {
 
       return {
-        success: false,
+        success:false,
         error:
           "Payload/delimiter tidak ditemukan"
       };
@@ -1022,37 +930,22 @@ function hcParseModern(
 
     const toHex =
       s =>
-        Buffer
-          .from(
-            String(s || ""),
-            "utf8"
-          )
-          .toString("hex");
+        Buffer.from(
+          String(s||""),
+          "utf8"
+        ).toString("hex");
 
-    const h =
-      meta.hwid;
-
-    const p =
-      meta.password;
-
-    const pr =
-      meta.provider;
-
-    const a =
-      meta.area;
+    const h = meta.hwid;
+    const p = meta.password;
+    const pr = meta.provider;
+    const a = meta.area;
 
     const derived =
-      h &&
-      !p &&
-      !pr &&
-      !a
-
-        ? toHex(h) +
-          toHex(h)
-
-        : toHex(p) +
-          toHex(h) +
-          toHex(pr) +
+      (h && !p && !pr && !a)
+        ? toHex(h)+toHex(h)
+        : toHex(p)+
+          toHex(h)+
+          toHex(pr)+
           toHex(a);
 
     const dyn =
@@ -1063,12 +956,10 @@ function hcParseModern(
       try {
 
         const b =
-          Buffer
-            .from(
-              derived,
-              "hex"
-            )
-            .subarray(0, 8);
+          Buffer.from(
+            derived,
+            "hex"
+          ).subarray(0,8);
 
         b.copy(
           dyn,
@@ -1079,10 +970,6 @@ function hcParseModern(
 
       } catch {}
     }
-
-    //// =========================
-    //// DECRYPT PAYLOAD
-    //// =========================
 
     let xyDec = null;
 
@@ -1109,7 +996,6 @@ function hcParseModern(
             t &&
             t.includes(delim)
           ) {
-
             xyDec = t;
             break;
           }
@@ -1128,15 +1014,11 @@ function hcParseModern(
     if (!xyDec) {
 
       return {
-        success: false,
+        success:false,
         error:
           "Isi konfigurasi gagal didekripsi"
       };
     }
-
-    //// =========================
-    //// PARSE CONFIG
-    //// =========================
 
     const config = {};
 
@@ -1146,17 +1028,15 @@ function hcParseModern(
       );
 
     for (
-      let i = 0;
-      i < tokens.length;
+      let i=0;
+      i<tokens.length;
       i++
     ) {
 
       if (
         i === 22 ||
         i === 24
-      ) {
-        continue;
-      }
+      ) continue;
 
       const label =
         HC.tokenMap[i] ||
@@ -1175,9 +1055,7 @@ function hcParseModern(
 
       } else {
 
-        if (
-          hcIsHex(out)
-        ) {
+        if (hcIsHex(out)) {
 
           out =
             hcABC(
@@ -1193,10 +1071,6 @@ function hcParseModern(
             false
           );
       }
-
-      //// =========================
-      //// CREDENTIAL
-      //// =========================
 
       if (i === 7) {
 
@@ -1230,7 +1104,8 @@ function hcParseModern(
         ) {
 
           try {
-            out = JSON.parse(out);
+            out =
+              JSON.parse(out);
           } catch {}
         }
       }
@@ -1248,13 +1123,7 @@ function hcParseModern(
       }
     }
 
-    //// =========================
-    //// SSH
-    //// =========================
-
-    if (
-      config.sshField
-    ) {
+    if (config.sshField) {
 
       const sv =
         hcCredentials(
@@ -1270,29 +1139,28 @@ function hcParseModern(
       config.ssh =
         sm
           ? {
-              host: sm[1],
-              port: sm[2],
-              username: sm[3],
-              password: sm[4]
+              host:sm[1],
+              port:sm[2],
+              username:sm[3],
+              password:sm[4]
             }
           : {};
     }
 
     return {
-      success: true,
+      success:true,
       config,
       protections,
-      raw: xyDec,
-      format:
-        isNew
-          ? "new"
-          : "old"
+      raw:xyDec,
+      format:isNew
+        ? "new"
+        : "old"
     };
 
-  } catch (e) {
+  } catch(e) {
 
     return {
-      success: false,
+      success:false,
       error:
         e.message ||
         "Decrypt error"
@@ -1300,152 +1168,1406 @@ function hcParseModern(
   }
 }
 
-//// =========================
-//// API DECRYPT
-//// =========================
+
+/* =========================================================
+   =========================================================
+                    HTTP INJECTOR (.EHI)
+   =========================================================
+   ========================================================= */
+
+const EHIConstants = {
+
+  L1_KEY: Buffer.from(
+    "7e1210f7aab956f7a668bda6e57feddb7f84ad840aef8d27b1b969959be3ab6c",
+    "hex"
+  ),
+
+  L2_KEY_STATIC: Buffer.from(
+    "b2bc617c32d8b9eb1943a5ffa8051eea",
+    "hex"
+  ),
+
+  EOO_MASTER_KEY:
+    Buffer.from(
+      "null=V5kU5+FFrY\u0000",
+      "utf8"
+    ),
+
+  BYPASS_IVS: [
+
+    Buffer.from(
+      "221d572349555f1d112133236b1f4a3f",
+      "hex"
+    ),
+
+    Buffer.from(
+      "5543494c53443e3f4a6a4539384e776a",
+      "hex"
+    ),
+
+    Buffer.from(
+      "374c2541575e4d531a3c327b75431e5f",
+      "hex"
+    )
+
+  ],
+
+  STANDARD_IVS: [
+
+    Buffer.from(
+      "2c5d1147bbad422b3b334d4d235f1a53",
+      "hex"
+    ),
+
+    Buffer.from(
+      "522b01433a5e8b2fc7549e1ad368e541",
+      "hex"
+    ),
+
+    Buffer.from(
+      "337a1035aaedf3458ca167e92d74b839",
+      "hex"
+    )
+
+  ],
+
+  STD_ALPHABET:
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
+
+  CUSTOM_ALPHABET:
+    "RkLC2QaVMPYgGJW/A4f7qzDb9e+t6Hr0Zp8OlNyjuxKcTw1o5EIimhBn3UvdSFXs"
+
+};
+
+
+/* =========================
+   CUSTOM BASE64
+   ========================= */
+
+function ehiCustomB64Decode(encoded) {
+
+  let clean =
+    String(encoded || "")
+      .replace(/\?/g,"");
+
+  const rem =
+    clean.length % 4;
+
+  if (rem) {
+    clean +=
+      "=".repeat(4-rem);
+  }
+
+  let translated = "";
+
+  for (
+    const char of clean
+  ) {
+
+    const index =
+      EHIConstants.CUSTOM_ALPHABET
+        .indexOf(char);
+
+    if (index >= 0) {
+
+      translated +=
+        EHIConstants.STD_ALPHABET[index];
+
+    } else if (
+      char === "="
+    ) {
+
+      translated += "=";
+
+    }
+  }
+
+  return Buffer.from(
+    translated,
+    "base64"
+  );
+}
+
+
+/* =========================
+   XOR LAYER
+   ========================= */
+
+function ehiDecryptXorLayer(
+  ciphertext,
+  key
+) {
+
+  if (
+    !ciphertext ||
+    !String(ciphertext).trim()
+  ) {
+    return ciphertext;
+  }
+
+  try {
+
+    const reversed =
+      String(ciphertext)
+        .split("")
+        .reverse()
+        .join("");
+
+    const raw =
+      ehiCustomB64Decode(
+        reversed
+      );
+
+    let hexString =
+      raw.toString("ascii");
+
+    if (
+      hexString.length % 2 !== 0
+    ) {
+      hexString =
+        "0" + hexString;
+    }
+
+    const rawBytes =
+      Buffer.from(
+        hexString,
+        "hex"
+      );
+
+    const keyLen =
+      String(key).length;
+
+    if (!keyLen)
+      return null;
+
+    const output = [];
+
+    for (
+      let i=0;
+      i<rawBytes.length;
+      i++
+    ) {
+
+      const value =
+        rawBytes[i] ^
+        String(key).charCodeAt(
+          i % keyLen
+        );
+
+      if (value !== 0) {
+        output.push(value);
+      }
+    }
+
+    const plaintext =
+      Buffer.from(output)
+        .toString("utf8");
+
+    let bad = 0;
+
+    for (
+      const char of plaintext
+    ) {
+
+      const code =
+        char.charCodeAt(0);
+
+      if (
+        code < 32 &&
+        code !== 9 &&
+        code !== 10 &&
+        code !== 13
+      ) {
+        bad++;
+      }
+    }
+
+    if (
+      plaintext.length &&
+      bad / plaintext.length > 0.5
+    ) {
+      return null;
+    }
+
+    return plaintext;
+
+  } catch {
+
+    return null;
+  }
+}
+
+
+/* =========================
+   CONFIG MESSAGE
+   ========================= */
+
+function ehiDecodeConfigMessage(
+  ciphertext
+) {
+
+  if (
+    !ciphertext ||
+    !String(ciphertext).trim()
+  ) {
+    return ciphertext;
+  }
+
+  try {
+
+    let padded =
+      String(ciphertext);
+
+    const rem =
+      padded.length % 4;
+
+    if (rem) {
+      padded +=
+        "=".repeat(4-rem);
+    }
+
+    const raw =
+      Buffer.from(
+        padded,
+        "base64"
+      );
+
+    /*
+     * Python implementation converts
+     * UTF-8 bytes to UTF-16BE.
+     *
+     * Recreate the same 16-bit values.
+     */
+
+    const utf8Text =
+      raw.toString(
+        "utf8"
+      );
+
+    const utf16be =
+      Buffer.from(
+        utf8Text,
+        "utf16le"
+      );
+
+    const key =
+      "EHIMSG";
+
+    const chars = [];
+
+    /*
+     * Equivalent transformation
+     * for Java UTF-16 chars.
+     */
+
+    for (
+      let i=0;
+      i<utf8Text.length;
+      i++
+    ) {
+
+      const code =
+        utf8Text.charCodeAt(i);
+
+      const k =
+        key.charCodeAt(
+          i % key.length
+        );
+
+      chars.push(
+        code ^ k
+      );
+    }
+
+    return String.fromCharCode(
+      ...chars
+    );
+
+  } catch {
+
+    return ciphertext;
+  }
+}
+
+
+/* =========================
+   INNER FIELDS
+   ========================= */
+
+function ehiDecodeInnerFields(
+  parsedJson,
+  saltKey
+) {
+
+  const cleaned = {};
+
+  const vitalKeys =
+    new Set([
+      "overwriteServerData"
+    ]);
+
+  for (
+    const [key,value]
+    of Object.entries(parsedJson || {})
+  ) {
+
+    if (
+      typeof value === "string" &&
+      value.trim()
+    ) {
+
+      const decrypted =
+        key === "configMessage"
+          ? ehiDecodeConfigMessage(value)
+          : ehiDecryptXorLayer(
+              value,
+              saltKey
+            );
+
+      if (
+        decrypted !== null &&
+        decrypted !== undefined
+      ) {
+
+        cleaned[key] =
+          decrypted;
+
+      } else if (
+        vitalKeys.has(key)
+      ) {
+
+        cleaned[key] =
+          value;
+      }
+
+    } else {
+
+      cleaned[key] =
+        value;
+    }
+  }
+
+  return cleaned;
+}
+
+
+/* =========================
+   XXTEA
+   ========================= */
+
+function ehiReadUInt32LE(
+  buffer,
+  offset
+) {
+
+  return (
+    buffer[offset] |
+    (buffer[offset+1] << 8) |
+    (buffer[offset+2] << 16) |
+    (buffer[offset+3] << 24)
+  ) >>> 0;
+}
+
+
+function ehiWriteUInt32LE(
+  value,
+  buffer,
+  offset
+) {
+
+  buffer[offset] =
+    value & 255;
+
+  buffer[offset+1] =
+    (value >>> 8) & 255;
+
+  buffer[offset+2] =
+    (value >>> 16) & 255;
+
+  buffer[offset+3] =
+    (value >>> 24) & 255;
+}
+
+
+function ehiXXTeaDecrypt(
+  input,
+  key
+) {
+
+  if (!input.length)
+    return Buffer.alloc(0);
+
+  let data =
+    Buffer.from(input);
+
+  const rem =
+    data.length % 4;
+
+  if (rem) {
+
+    data = Buffer.concat([
+      data,
+      Buffer.alloc(4-rem)
+    ]);
+
+  }
+
+  const n =
+    data.length / 4;
+
+  if (n <= 0)
+    return Buffer.alloc(0);
+
+  const kbuf =
+    Buffer.alloc(16);
+
+  key.copy(
+    kbuf,
+    0,
+    0,
+    Math.min(
+      key.length,
+      16
+    )
+  );
+
+  const k = [];
+
+  for (let i=0;i<4;i++) {
+
+    k.push(
+      ehiReadUInt32LE(
+        kbuf,
+        i*4
+      )
+    );
+
+  }
+
+  const v = [];
+
+  for (let i=0;i<n;i++) {
+
+    v.push(
+      ehiReadUInt32LE(
+        data,
+        i*4
+      )
+    );
+
+  }
+
+  const delta =
+    0x9e3779b9;
+
+  let sum =
+    Math.imul(
+      6 + Math.floor(52/n),
+      delta
+    ) >>> 0;
+
+  let y =
+    v[0];
+
+  while (sum !== 0) {
+
+    const e =
+      (sum >>> 2) & 3;
+
+    for (
+      let p=n-1;
+      p>0;
+      p--
+    ) {
+
+      const z =
+        v[p-1];
+
+      const mx =
+        (
+          (
+            ((z >>> 5) ^
+             (y << 2))
+            +
+            ((y >>> 3) ^
+             (z << 4))
+          ) ^
+          (
+            (sum ^ y) +
+            (
+              k[(p & 3) ^ e] ^
+              z
+            )
+          )
+        ) >>> 0;
+
+      v[p] =
+        (
+          v[p] -
+          mx
+        ) >>> 0;
+
+      y =
+        v[p];
+    }
+
+    const z =
+      v[n-1];
+
+    const mx =
+      (
+        (
+          ((z >>> 5) ^
+           (y << 2))
+          +
+          ((y >>> 3) ^
+           (z << 4))
+        ) ^
+        (
+          (sum ^ y) +
+          (
+            k[e] ^
+            z
+          )
+        )
+      ) >>> 0;
+
+    v[0] =
+      (
+        v[0] -
+        mx
+      ) >>> 0;
+
+    y =
+      v[0];
+
+    sum =
+      (
+        sum -
+        delta
+      ) >>> 0;
+  }
+
+  const decrypted =
+    Buffer.alloc(
+      v.length * 4
+    );
+
+  for (
+    let i=0;
+    i<v.length;
+    i++
+  ) {
+
+    ehiWriteUInt32LE(
+      v[i],
+      decrypted,
+      i*4
+    );
+
+  }
+
+  const length =
+    v[v.length-1];
+
+  if (
+    length > 0 &&
+    length <= decrypted.length
+  ) {
+
+    return decrypted.subarray(
+      0,
+      length
+    );
+  }
+
+  let end =
+    decrypted.length;
+
+  while (
+    end > 0 &&
+    decrypted[end-1] === 0
+  ) {
+    end--;
+  }
+
+  return decrypted.subarray(
+    0,
+    end
+  );
+}
+
+
+/* =========================
+   PARSE EHI FILE
+   ========================= */
+
+function ehiParseEhiBytes(
+  fileBytes
+) {
+
+  try {
+
+    let offset = 0;
+
+    function readBytes(n) {
+
+      const result =
+        fileBytes.subarray(
+          offset,
+          offset+n
+        );
+
+      offset += n;
+
+      return result;
+    }
+
+
+    function readUTF() {
+
+      const lengthBuffer =
+        readBytes(2);
+
+      if (
+        lengthBuffer.length < 2
+      ) {
+        return "";
+      }
+
+      const length =
+        lengthBuffer.readUInt16BE(0);
+
+      return readBytes(length)
+        .toString(
+          "utf8"
+        );
+    }
+
+
+    readUTF();
+
+    readBytes(8);
+
+    readUTF();
+
+    readBytes(8);
+
+    const pLenBuffer =
+      readBytes(4);
+
+    if (
+      pLenBuffer.length < 4
+    ) {
+      return null;
+    }
+
+    const pLen =
+      pLenBuffer.readUInt32BE(0);
+
+    readBytes(8);
+
+    return readBytes(
+      pLen
+    );
+
+  } catch {
+
+    return null;
+  }
+}
+
+
+/* =========================
+   MASTER KEY
+   ========================= */
+
+function ehiGenerateMasterKey(
+  config
+) {
+
+  const values = [
+
+    config.configAesKey || "",
+
+    config.configIdentifier || "",
+
+    config.configSalt || "",
+
+    String(
+      config.configTimestamp || 0
+    ),
+
+    String(
+      config.configExpiryTimestamp || 0
+    ),
+
+    config.lockModes || "",
+
+    config.lockModesHash || "",
+
+    config.configHwid || "",
+
+    config.configLockMobileOperatorId || ""
+
+  ];
+
+  const payload =
+    values
+      .filter(Boolean)
+      .join("");
+
+  return crypto
+    .createHash("sha256")
+    .update(
+      payload,
+      "utf8"
+    )
+    .digest();
+}
+
+
+/* =========================
+   ARGON2 RAW KEY
+   ========================= */
+
+async function ehiArgon2Key(
+  secret,
+  salt,
+  timeCost,
+  memoryCost,
+  parallelism
+) {
+
+  return await argon2.hash(
+    secret,
+    {
+      type:
+        argon2.argon2id,
+
+      salt,
+
+      timeCost,
+
+      memoryCost,
+
+      parallelism,
+
+      hashLength:32,
+
+      raw:true
+    }
+  );
+}
+
+
+/* =========================
+   CHACHA20 POLY1305
+   ========================= */
+
+function ehiChaChaDecrypt(
+  key,
+  nonce,
+  aad,
+  ciphertext,
+  tag
+) {
+
+  const decipher =
+    crypto.createDecipheriv(
+      "chacha20-poly1305",
+      key,
+      nonce,
+      {
+        authTagLength:16
+      }
+    );
+
+  decipher.setAAD(
+    aad,
+    {
+      plaintextLength:
+        ciphertext.length
+    }
+  );
+
+  decipher.setAuthTag(
+    tag
+  );
+
+  return Buffer.concat([
+    decipher.update(ciphertext),
+    decipher.final()
+  ]);
+}
+
+
+/* =========================
+   EHI MAIN DECRYPT
+   ========================= */
+
+async function ehiExecute(
+  fileBytes
+) {
+
+  const payload =
+    ehiParseEhiBytes(
+      fileBytes
+    );
+
+  if (!payload) {
+
+    return {
+      success:false,
+      error:
+        "Payload EHI tidak ditemukan"
+    };
+
+  }
+
+  let config = null;
+  let matchedIV = null;
+
+  const allIVs = [
+    ...EHIConstants.BYPASS_IVS,
+    ...EHIConstants.STANDARD_IVS
+  ];
+
+  /*
+   * Layer 1 + Layer 2 + XXTEA
+   */
+
+  for (
+    const iv of allIVs
+  ) {
+
+    try {
+
+      const c1 =
+        crypto.createDecipheriv(
+          "aes-256-cbc",
+          EHIConstants.L1_KEY,
+          iv
+        );
+
+      c1.setAutoPadding(true);
+
+      const l1 =
+        Buffer.concat([
+          c1.update(payload),
+          c1.final()
+        ]).toString("utf8");
+
+      const parts =
+        l1.split(":");
+
+      if (
+        parts.length < 3
+      ) {
+        continue;
+      }
+
+      const iv2 =
+        Buffer.from(
+          parts[0],
+          "base64"
+        );
+
+      const ciphertext2 =
+        Buffer.from(
+          parts[2],
+          "base64"
+        );
+
+      if (
+        iv2.length !== 16 ||
+        ciphertext2.length === 0
+      ) {
+        continue;
+      }
+
+      const c2 =
+        crypto.createDecipheriv(
+          "aes-128-cbc",
+          EHIConstants.L2_KEY_STATIC,
+          iv2
+        );
+
+      c2.setAutoPadding(true);
+
+      const garbage =
+        Buffer.concat([
+          c2.update(
+            ciphertext2
+          ),
+          c2.final()
+        ]);
+
+      const finalRaw =
+        ehiXXTeaDecrypt(
+          garbage,
+          EHIConstants.EOO_MASTER_KEY
+        );
+
+      const start =
+        finalRaw.indexOf(
+          0x7b
+        );
+
+      if (start < 0)
+        continue;
+
+      const jsonText =
+        finalRaw
+          .subarray(start)
+          .toString(
+            "utf8"
+          );
+
+      config =
+        JSON.parse(
+          jsonText
+        );
+
+      matchedIV =
+        iv;
+
+      break;
+
+    } catch {
+
+      continue;
+    }
+  }
+
+  if (!config) {
+
+    return {
+      success:false,
+      error:
+        "Layer EHI gagal didecrypt"
+    };
+  }
+
+  const targetSalt =
+    config.configSalt ||
+    "EVZJNI";
+
+  let parsedFinal;
+
+  /*
+   * BYPASS
+   */
+
+  const isBypass =
+    EHIConstants.BYPASS_IVS.some(
+      x =>
+        x.equals(matchedIV)
+    );
+
+  if (isBypass) {
+
+    parsedFinal =
+      config;
+
+  } else {
+
+    /*
+     * STANDARD
+     */
+
+    const targetData =
+      config.configData;
+
+    if (!targetData) {
+
+      return {
+        success:false,
+        error:
+          "configData tidak ditemukan"
+      };
+    }
+
+    const aaaResult =
+      ehiDecryptXorLayer(
+        targetData,
+        targetSalt
+      );
+
+    if (!aaaResult) {
+
+      return {
+        success:false,
+        error:
+          "configData gagal didecrypt"
+      };
+    }
+
+    let rawPayload;
+
+    try {
+
+      rawPayload =
+        Buffer.from(
+          aaaResult,
+          "base64"
+        );
+
+    } catch {
+
+      return {
+        success:false,
+        error:
+          "Payload Argon2 tidak valid"
+      };
+    }
+
+    if (
+      rawPayload.length <= 50
+    ) {
+
+      return {
+        success:false,
+        error:
+          "Payload Argon2 terlalu pendek"
+      };
+    }
+
+    try {
+
+      const timeCost =
+        rawPayload.readUInt32LE(
+          1
+        );
+
+      const memoryCost =
+        rawPayload.readUInt32LE(
+          5
+        );
+
+      const parallelism =
+        rawPayload[9];
+
+      const salt =
+        rawPayload.subarray(
+          0x0a,
+          0x1a
+        );
+
+      const nonce =
+        rawPayload.subarray(
+          0x1a,
+          0x32
+        );
+
+      const aad =
+        rawPayload.subarray(
+          0,
+          0x1a
+        );
+
+      const ciphertext =
+        rawPayload.subarray(
+          0x32,
+          -16
+        );
+
+      const tag =
+        rawPayload.subarray(
+          -16
+        );
+
+      const masterKey =
+        ehiGenerateMasterKey(
+          config
+        );
+
+      const argonKey =
+        await ehiArgon2Key(
+          masterKey,
+          salt,
+          timeCost,
+          memoryCost,
+          parallelism
+        );
+
+      const decrypted =
+        ehiChaChaDecrypt(
+          argonKey,
+          nonce,
+          aad,
+          ciphertext,
+          tag
+        );
+
+      parsedFinal =
+        JSON.parse(
+          decrypted.toString(
+            "utf8"
+          )
+        );
+
+    } catch (error) {
+
+      return {
+        success:false,
+        error:
+          "Argon2/ChaCha decrypt gagal: " +
+          error.message
+      };
+    }
+  }
+
+  /*
+   * CLEAN INNER JSON
+   */
+
+  let cleanedFinalJson =
+    ehiDecodeInnerFields(
+      parsedFinal,
+      targetSalt
+    );
+
+  /*
+   * Parse nested JSON
+   */
+
+  for (
+    const field of [
+      "v2rRawJson",
+      "overwriteServerData"
+    ]
+  ) {
+
+    if (
+      field in cleanedFinalJson &&
+      typeof cleanedFinalJson[field] === "string"
+    ) {
+
+      const rawString =
+        cleanedFinalJson[field];
+
+      try {
+
+        const start =
+          rawString.indexOf("{");
+
+        const end =
+          rawString.lastIndexOf("}");
+
+        if (
+          start !== -1 &&
+          end !== -1
+        ) {
+
+          const text =
+            rawString.substring(
+              start,
+              end+1
+            );
+
+          let parsed =
+            JSON.parse(text);
+
+          if (
+            typeof parsed === "string"
+          ) {
+            parsed =
+              JSON.parse(parsed);
+          }
+
+          cleanedFinalJson[field] =
+            parsed;
+        }
+
+      } catch (error) {
+
+        cleanedFinalJson[
+          field +
+          "_PARSING_ERROR"
+        ] =
+          error.message;
+      }
+    }
+  }
+
+  return {
+    success:true,
+    format:"ehi",
+    config:cleanedFinalJson,
+    raw:JSON.stringify(
+      cleanedFinalJson,
+      null,
+      4
+    )
+  };
+}
+
+
+/* =========================================================
+                         API
+   ========================================================= */
 
 app.post(
   "/api/decrypt",
   upload.single("file"),
-  (req, res) => {
+  async (req,res) => {
 
     try {
 
       if (!req.file) {
 
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "File tidak ditemukan"
-          });
+        return res.status(400).json({
+          success:false,
+          error:
+            "File tidak ditemukan"
+        });
       }
 
       const filename =
         req.file.originalname
           .toLowerCase();
 
-      //// HANYA .HC
+
+      /*
+       * HC
+       */
 
       if (
-        !filename.endsWith(".hc")
+        filename.endsWith(".hc")
       ) {
 
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "Format file harus .hc"
+        const result =
+          hcParseModern(
+            req.file.buffer
+          );
+
+        if (result.success) {
+
+          return res.json({
+            ...result,
+            filename:
+              req.file.originalname,
+            format:
+              "HTTP Custom (.hc)"
           });
-      }
 
-      //// OTOMATIS DECRYPT
-      //// MENGGUNAKAN KEY BAWAAN
+        }
 
-      const result =
-        hcParseModern(
-          req.file.buffer
-        );
-
-      if (
-        result &&
-        result.success
-      ) {
-
-        return res.json(
+        return res.status(400).json(
           result
         );
       }
 
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error:
-            result?.error ||
-            "File HC gagal didecrypt"
-        });
 
-    } catch (e) {
+      /*
+       * EHI
+       */
+
+      if (
+        filename.endsWith(".ehi")
+      ) {
+
+        const result =
+          await ehiExecute(
+            req.file.buffer
+          );
+
+        if (result.success) {
+
+          return res.json({
+            ...result,
+            filename:
+              req.file.originalname,
+            format:
+              "HTTP Injector (.ehi)"
+          });
+
+        }
+
+        return res.status(400).json(
+          result
+        );
+      }
+
+
+      /*
+       * FORMAT LAIN
+       */
+
+      return res.status(400).json({
+        success:false,
+        error:
+          "Format tidak didukung. Gunakan .hc atau .ehi"
+      });
+
+    } catch(error) {
 
       console.error(
-        "HC DECRYPT ERROR:",
-        e
+        "DECRYPT ERROR:",
+        error
       );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error:
-            e.message
-        });
+      return res.status(500).json({
+        success:false,
+        error:
+          error.message
+      });
     }
   }
 );
 
-//// =========================
-//// HEALTH CHECK
-//// =========================
+
+/* =========================================================
+                        HEALTH
+   ========================================================= */
 
 app.get(
   "/api/health",
-  (req, res) => {
+  (req,res) => {
 
     res.json({
-      success: true,
-      name: "DINSTORE DECRYPTOR",
-      status: "online"
+      success:true,
+      status:"online",
+      decryptors:[
+        ".hc",
+        ".ehi"
+      ]
     });
+
   }
 );
 
-//// =========================
-//// SUPPORTED
-//// =========================
+
+/* =========================================================
+                      SUPPORTED
+   ========================================================= */
 
 app.get(
   "/api/supported",
-  (req, res) => {
+  (req,res) => {
 
     res.json({
-      success: true,
-      formats: [
+      success:true,
+      formats:[
         {
-          name: "HTTP Custom",
-          extension: ".hc"
+          name:"HTTP Custom",
+          extension:".hc"
+        },
+        {
+          name:"HTTP Injector",
+          extension:".ehi"
         }
       ]
     });
+
   }
 );
 
-//// =========================
-//// FRONTEND
-//// =========================
 
-app.get(
-  "*",
-  (req, res) => {
-
-    res.sendFile(
-      path.join(
-        __dirname,
-        "public",
-        "index.html"
-      )
-    );
-  }
-);
-
-//// =========================
-//// SERVER
-//// =========================
-
-const PORT =
-  process.env.PORT || 3000;
+/* =========================================================
+                       START
+   ========================================================= */
 
 if (
   require.main === module
@@ -1456,22 +2578,36 @@ if (
     () => {
 
       console.log(
-        "================================="
+        "======================================"
       );
 
       console.log(
-        " DINSTORE DECRYPTOR"
+        "       DINSTORE DECRYPTOR v2"
       );
 
       console.log(
-        "================================="
+        "======================================"
       );
 
       console.log(
-        `Server running: http://localhost:${PORT}`
+        "HC  : ENABLED"
       );
+
+      console.log(
+        "EHI : ENABLED"
+      );
+
+      console.log(
+        `PORT: ${PORT}`
+      );
+
+      console.log(
+        `URL : http://localhost:${PORT}`
+      );
+
     }
   );
 }
+
 
 module.exports = app;
