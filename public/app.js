@@ -1,287 +1,279 @@
-const fileInput =
-  document.getElementById(
-    "fileInput"
-  );
+//// =========================
+//// ELEMENT
+//// =========================
 
-const upload =
-  document.getElementById(
-    "upload"
-  );
+const fileInput = document.getElementById("fileInput");
+const chooseBtn = document.getElementById("chooseBtn");
+const dropArea = document.getElementById("dropArea");
 
-const selectFile =
-  document.getElementById(
-    "selectFile"
-  );
+const filePreview = document.getElementById("filePreview");
+const fileName = document.getElementById("fileName");
+const fileSize = document.getElementById("fileSize");
 
-const fileInfo =
-  document.getElementById(
-    "fileInfo"
-  );
+const removeBtn = document.getElementById("removeBtn");
+const openBtn = document.getElementById("openBtn");
 
-const fileName =
-  document.getElementById(
-    "fileName"
-  );
+const message = document.getElementById("message");
 
-const fileSize =
-  document.getElementById(
-    "fileSize"
-  );
+const resultCard = document.getElementById("resultCard");
+const result = document.getElementById("result");
+const resultName = document.getElementById("resultName");
 
-const removeFile =
-  document.getElementById(
-    "removeFile"
-  );
+const copyBtn = document.getElementById("copyBtn");
+const downloadBtn = document.getElementById("downloadBtn");
 
-const uploadBtn =
-  document.getElementById(
-    "uploadBtn"
-  );
-
-const message =
-  document.getElementById(
-    "message"
-  );
-
+//// =========================
+//// STATE
+//// =========================
 
 let selectedFile = null;
 
+//// =========================
+//// FORMAT SIZE
+//// =========================
 
-//// ========================================================
+function formatSize(bytes) {
+
+  if (bytes < 1024) {
+    return bytes + " B";
+  }
+
+  if (bytes < 1024 * 1024) {
+    return (bytes / 1024).toFixed(2) + " KB";
+  }
+
+  return (bytes / 1024 / 1024).toFixed(2) + " MB";
+}
+
+//// =========================
 //// PILIH FILE
-//// ========================================================
+//// =========================
 
-selectFile.onclick = e => {
-
-  e.stopPropagation();
-
+chooseBtn.addEventListener("click", () => {
   fileInput.click();
+});
 
-};
-
-
-upload.onclick = () => {
-
-  fileInput.click();
-
-};
-
-
-fileInput.onchange = () => {
+dropArea.addEventListener("click", (e) => {
 
   if (
-    fileInput.files.length
+    e.target !== chooseBtn
   ) {
-
-    setFile(
-      fileInput.files[0]
-    );
-
+    fileInput.click();
   }
 
-};
+});
 
+fileInput.addEventListener("change", () => {
 
-//// ========================================================
+  if (fileInput.files.length) {
+    setFile(fileInput.files[0]);
+  }
+
+});
+
+//// =========================
 //// DRAG DROP
-//// ========================================================
+//// =========================
 
-upload.ondragover = e => {
-
-  e.preventDefault();
-
-  upload.classList.add(
-    "drag"
-  );
-
-};
-
-
-upload.ondragleave = () => {
-
-  upload.classList.remove(
-    "drag"
-  );
-
-};
-
-
-upload.ondrop = e => {
+dropArea.addEventListener("dragover", (e) => {
 
   e.preventDefault();
 
-  upload.classList.remove(
-    "drag"
-  );
+  dropArea.classList.add("dragging");
 
-  if (
-    e.dataTransfer.files.length
-  ) {
+});
 
-    setFile(
-      e.dataTransfer.files[0]
-    );
+dropArea.addEventListener("dragleave", () => {
 
+  dropArea.classList.remove("dragging");
+
+});
+
+dropArea.addEventListener("drop", (e) => {
+
+  e.preventDefault();
+
+  dropArea.classList.remove("dragging");
+
+  const file = e.dataTransfer.files[0];
+
+  if (file) {
+    setFile(file);
   }
 
-};
+});
 
-
-//// ========================================================
+//// =========================
 //// SET FILE
-//// ========================================================
+//// =========================
 
 function setFile(file) {
 
   selectedFile = file;
 
-  fileName.textContent =
-    file.name;
+  fileName.textContent = file.name;
+  fileSize.textContent = formatSize(file.size);
 
-  fileSize.textContent =
-    formatSize(
-      file.size
-    );
+  filePreview.style.display = "flex";
 
-  fileInfo.hidden =
-    false;
+  openBtn.disabled = false;
 
-  uploadBtn.disabled =
-    false;
+  message.textContent = "";
 
-  message.textContent =
-    "File siap diupload.";
+  resultCard.style.display = "none";
 
 }
 
-
-//// ========================================================
+//// =========================
 //// REMOVE
-//// ========================================================
+//// =========================
 
-removeFile.onclick = () => {
+removeBtn.addEventListener("click", () => {
 
   selectedFile = null;
 
   fileInput.value = "";
 
-  fileInfo.hidden =
-    true;
+  filePreview.style.display = "none";
 
-  uploadBtn.disabled =
-    true;
+  openBtn.disabled = true;
 
-  message.textContent =
-    "";
+  resultCard.style.display = "none";
 
-};
+  message.textContent = "";
 
+});
 
-//// ========================================================
-//// UPLOAD
-//// ========================================================
+//// =========================
+//// BUKA FILE
+//// =========================
 
-uploadBtn.onclick =
-  async () => {
+openBtn.addEventListener("click", async () => {
 
-    if (!selectedFile)
-      return;
-
-    uploadBtn.disabled =
-      true;
-
-    uploadBtn.textContent =
-      "Uploading...";
-
-    message.textContent =
-      "Mengupload file...";
-
-
-    try {
-
-      const formData =
-        new FormData();
-
-      formData.append(
-        "file",
-        selectedFile
-      );
-
-
-      const response =
-        await fetch(
-          "/api/upload",
-          {
-            method: "POST",
-            body: formData
-          }
-        );
-
-
-      const data =
-        await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.error ||
-          "Upload gagal"
-        );
-
-      }
-
-
-      message.textContent =
-        `Upload berhasil: ${data.file.name}`;
-
-    } catch (error) {
-
-      message.textContent =
-        error.message;
-
-    }
-
-
-    uploadBtn.disabled =
-      false;
-
-    uploadBtn.textContent =
-      "Upload File";
-
-  };
-
-
-//// ========================================================
-//// FORMAT SIZE
-//// ========================================================
-
-function formatSize(bytes) {
-
-  if (
-    bytes < 1024
-  ) {
-
-    return bytes + " B";
-
+  if (!selectedFile) {
+    return;
   }
 
-  if (
-    bytes < 1024 * 1024
-  ) {
+  openBtn.disabled = true;
 
-    return (
-      (bytes / 1024)
-        .toFixed(2) +
-      " KB"
+  openBtn.textContent = "⏳ Membuka...";
+
+  message.textContent = "Sedang memproses file...";
+
+  try {
+
+    const formData = new FormData();
+
+    formData.append(
+      "file",
+      selectedFile
     );
 
+    const response = await fetch(
+      "/api/open",
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+
+    const data = await response.json();
+
+    if (!data.status) {
+      throw new Error(
+        data.message || "Gagal membuka file"
+      );
+    }
+
+    resultCard.style.display = "block";
+
+    resultName.textContent =
+      data.filename;
+
+    result.textContent =
+      data.result || "(File kosong)";
+
+    message.textContent =
+      "✅ File berhasil dibuka";
+
+    resultCard.scrollIntoView({
+      behavior: "smooth"
+    });
+
+  } catch (error) {
+
+    message.textContent =
+      "❌ " + error.message;
+
+  } finally {
+
+    openBtn.disabled = false;
+
+    openBtn.textContent =
+      "🔓 Buka File";
+
   }
 
-  return (
-    (bytes / 1024 / 1024)
-      .toFixed(2) +
-    " MB"
+});
+
+//// =========================
+//// COPY
+//// =========================
+
+copyBtn.addEventListener("click", async () => {
+
+  try {
+
+    await navigator.clipboard.writeText(
+      result.textContent
+    );
+
+    copyBtn.textContent =
+      "✅ Tersalin";
+
+    setTimeout(() => {
+
+      copyBtn.textContent =
+        "📋 Salin";
+
+    }, 1500);
+
+  } catch (error) {
+
+    alert("Gagal menyalin");
+
+  }
+
+});
+
+//// =========================
+//// DOWNLOAD
+//// =========================
+
+downloadBtn.addEventListener("click", () => {
+
+  const blob = new Blob(
+    [result.textContent],
+    {
+      type: "text/plain"
+    }
   );
 
-}
+  const url =
+    URL.createObjectURL(blob);
+
+  const a =
+    document.createElement("a");
+
+  a.href = url;
+
+  a.download =
+    selectedFile
+      ? selectedFile.name + ".txt"
+      : "hasil.txt";
+
+  a.click();
+
+  URL.revokeObjectURL(url);
+
+});
