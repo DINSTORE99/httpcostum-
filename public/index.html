@@ -2,40 +2,35 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>HTTP Custom Web Tools</title>
+  <title>HTTP Custom Generator</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-6">
-  <div class="max-w-2xl mx-auto space-y-6">
-    <h1 class="text-2xl font-bold text-center text-emerald-400">HTTP Custom Web Tools</h1>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-6 flex items-center justify-center">
+  <div class="max-w-md w-full space-y-6">
+    <h1 class="text-2xl font-bold text-center text-emerald-400">HTTP Custom Generator</h1>
 
-    <!-- Panel Decrypt / Buka File .hc -->
     <div class="bg-slate-800 p-5 rounded-xl shadow space-y-4">
-      <h2 class="font-semibold text-emerald-300">1. Bongkar / Decrypt File .hc</h2>
-      <input type="file" id="hcFile" class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-500 file:text-slate-950 hover:file:bg-emerald-400"/>
-      <button onclick="decryptFile()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2 rounded font-medium transition">Decrypt File</button>
-    </div>
-
-    <!-- Panel Generator Berdasarkan Bug -->
-    <div class="bg-slate-800 p-5 rounded-xl shadow space-y-4">
-      <h2 class="font-semibold text-blue-300">2. Generator Config & Download</h2>
       <div>
         <label class="block text-xs text-slate-400 mb-1">Pilih Operator:</label>
         <select id="operatorSelect" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-100">
           <option value="">Memuat operator...</option>
         </select>
       </div>
+
       <div>
         <label class="block text-xs text-slate-400 mb-1">Kredensial SSH (host:port@username:password):</label>
         <input type="text" id="credential" placeholder="id-biznett.suneku.web.id:443@sunek:ssh7k" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-100"/>
       </div>
+
       <button onclick="generateConfig()" class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded font-medium transition">Generate & Download .hc</button>
     </div>
 
-    <!-- Panel Output -->
     <div class="bg-slate-800 p-5 rounded-xl shadow space-y-3">
-      <h2 class="font-semibold text-yellow-300">Hasil Output / Detail</h2>
-      <textarea id="output" rows="8" class="w-full bg-slate-900 border border-slate-700 rounded p-3 text-xs font-mono text-emerald-300" readonly></textarea>
+      <div class="flex justify-between items-center">
+        <h2 class="font-semibold text-yellow-300 text-xs uppercase tracking-wider">Hasil Output / Raw Config</h2>
+        <button onclick="copyOutput()" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-1 rounded text-slate-200 transition">Salin Teks</button>
+      </div>
+      <textarea id="output" rows="4" class="w-full bg-slate-900 border border-slate-700 rounded p-3 text-xs font-mono text-emerald-300 resize-none" readonly>Menunggu generate...</textarea>
     </div>
   </div>
 
@@ -55,32 +50,12 @@
       }
     };
 
-    async function decryptFile() {
-      const fileInput = document.getElementById('hcFile').files[0];
-      if (!fileInput) return alert('Pilih file .hc terlebih dahulu!');
-      
-      const formData = new FormData();
-      formData.append('file', fileInput);
-      
-      document.getElementById('output').value = "Memproses dekripsi file...";
-      try {
-        const res = await fetch('/api/decrypt', { method: 'POST', body: formData });
-        const data = await res.json();
-        if (data.success) {
-          document.getElementById('output').value = JSON.stringify(data.config, null, 2);
-        } else {
-          document.getElementById('output').value = "Error: " + data.error;
-        }
-      } catch (e) {
-        document.getElementById('output').value = "Gagal menghubungi server.";
-      }
-    }
-
     async function generateConfig() {
       const operator = document.getElementById('operatorSelect').value;
       const credential = document.getElementById('credential').value;
       if (!operator || !credential) return alert('Pilih operator dan masukkan kredensial!');
       
+      document.getElementById('output').value = "Memproses konfigurasi...";
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,6 +65,8 @@
       
       if (data.success) {
         document.getElementById('output').value = data.rawConfig;
+        
+        // Otomatis download file .hc
         const blob = new Blob([data.rawConfig], { type: 'application/octet-stream' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -100,8 +77,20 @@
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else {
-        alert(data.error);
+        document.getElementById('output').value = "Error: " + data.error;
       }
+    }
+
+    function copyOutput() {
+      const outputText = document.getElementById('output');
+      if (!outputText.value || outputText.value.startsWith("Menunggu") || outputText.value.startsWith("Memproses") || outputText.value.startsWith("Error")) {
+        return alert("Belum ada hasil config yang bisa disalin!");
+      }
+      navigator.clipboard.writeText(outputText.value).then(() => {
+        alert("Berhasil menyalin raw config ke clipboard!");
+      }).catch(err => {
+        alert("Gagal menyalin teks.");
+      });
     }
   </script>
 </body>
