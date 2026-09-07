@@ -1,80 +1,973 @@
-<!DOCTYPE html>
-<html lang="id">
+<!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  <title>BONGKAR HTTP COSTUM</title>  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-  <title>DINSTORE Decryptor</title>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      min-height: 100vh;
+    }
 
-  <link rel="stylesheet" href="/style.css">
-</head>
+    .container {
+      width: 100%;
+      max-width: 900px;
+      margin: auto;
+      padding: 25px 15px;
+    }
 
-<body>
+    .header {
+      text-align: center;
+      margin-bottom: 25px;
+    }
 
-  <div class="container">
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+      color: #fff;
+    }
 
-    <h1>DINSTORE DECRYPTOR</h1>
-    <p class="subtitle">Decrypt file HC & EHI</p>
+    .header p {
+      margin-top: 8px;
+      color: #94a3b8;
+    }
 
-    <div id="dropZone" class="drop-zone">
+    .upload-box {
+      border: 2px dashed #475569;
+      border-radius: 16px;
+      padding: 35px 20px;
+      text-align: center;
+      background: #111827;
+      cursor: pointer;
+      transition: .2s;
+    }
 
-      <input
-        type="file"
-        id="fileInput"
-        accept=".hc,.ehi"
-        hidden
-      >
+    .upload-box:hover,
+    .upload-box.dragover {
+      border-color: #38bdf8;
+      background: #172033;
+    }
 
-      <div class="upload-icon">📁</div>
+    .upload-icon {
+      font-size: 45px;
+      margin-bottom: 10px;
+    }
 
-      <h2>Pilih File</h2>
+    .upload-box h3 {
+      margin: 5px 0;
+      color: #fff;
+    }
 
-      <p id="fileText">
-        Klik tombol di bawah untuk memilih file
-      </p>
+    .upload-box p {
+      color: #94a3b8;
+      font-size: 14px;
+    }
 
-      <button
-        type="button"
-        id="selectBtn"
-        class="btn"
-      >
-        Pilih File
-      </button>
+    #fileInput {
+      display: none;
+    }
 
-    </div>
+    .file-name {
+      margin-top: 15px;
+      color: #38bdf8;
+      font-size: 14px;
+      word-break: break-all;
+    }
 
-    <button
-      type="button"
-      id="decryptBtn"
-      class="btn decrypt-btn"
-      disabled
-    >
-      🔓 Decrypt
-    </button>
+    .decrypt-btn {
+      width: 100%;
+      margin-top: 15px;
+      padding: 14px;
+      border: 0;
+      border-radius: 10px;
+      background: #2563eb;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
 
-    <div id="status" class="status"></div>
+    .decrypt-btn:hover {
+      background: #1d4ed8;
+    }
 
-    <div id="resultBox" class="result-box" hidden>
+    .decrypt-btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
 
-      <div class="result-header">
-        <span>Hasil Decrypt</span>
+    .status {
+      margin-top: 15px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #111827;
+      display: none;
+      font-size: 14px;
+    }
+
+    .result {
+      margin-top: 25px;
+    }
+
+    .result-title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+
+    .field {
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .field-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      background: #172033;
+      gap: 10px;
+    }
+
+    .field-title {
+      font-weight: bold;
+      color: #fff;
+      word-break: break-word;
+    }
+
+    .copy-btn {
+      flex-shrink: 0;
+      border: 0;
+      border-radius: 7px;
+      padding: 7px 12px;
+      background: #334155;
+      color: #fff;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .copy-btn:hover {
+      background: #475569;
+    }
+
+    .field-value {
+      padding: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: monospace;
+      font-size: 14px;
+      color: #cbd5e1;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow: auto;
+    }
+
+    .ssh-box {
+      border: 1px solid #1e293b;
+      background: #111827;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      overflow: hidden;
+    }
+
+    .ssh-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      background: #172033;
+    }
+
+    .ssh-title {
+      font-weight: bold;
+    }
+
+    .ssh-value {
+      padding: 15px;
+      font-family: monospace;
+      word-break: break-all;
+      color: #38bdf8;
+    }
+
+    .empty {
+      padding: 25px;
+      text-align: center;
+      color: #94a3b8;
+      background: #111827;
+      border-radius: 12px;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 35px;
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 20px 12px;
+      }
+
+      .header h1 {
+        font-size: 24px;
+      }
+
+      .field-header {
+        align-items: flex-start;
+      }
+
+      .copy-btn {
+        padding: 6px 10px;
+      }
+    }
+  </style></head><body><div class="container">  <div class="header">
+    <h1>🔐 DINSTORE HC Decryptor</h1>
+    <p>Decrypt file HTTP Custom (.hc)</p>
+  </div>  <div
+    class="upload-box"
+    id="uploadBox"
+  >
+    <div class="upload-icon">📁</div><h3>Pilih File .HC</h3>
+
+<p>
+  Klik di sini atau drag & drop file HC
+</p>
+
+<input
+  type="file"
+  id="fileInput"
+  accept=".hc"
+>
+
+<div
+  class="file-name"
+  id="fileName"
+></div>
+
+  </div><button
+class="decrypt-btn"
+id="decryptBtn"
+disabled
+
+«»
+
+🔓 DECRYPT
+
+  </button>  <div
+    class="status"
+    id="status"
+  ></div>  <div
+    class="result"
+    id="result"
+  ></div>  <div class="footer">
+    DINSTORE HC Decryptor
+  </div></div><script>
+
+const uploadBox =
+  document.getElementById("uploadBox");
+
+const fileInput =
+  document.getElementById("fileInput");
+
+const fileName =
+  document.getElementById("fileName");
+
+const decryptBtn =
+  document.getElementById("decryptBtn");
+
+const statusBox =
+  document.getElementById("status");
+
+const resultBox =
+  document.getElementById("result");
+
+let selectedFile = null;
+
+
+// ==========================================
+// FILE PICKER
+// ==========================================
+
+uploadBox.addEventListener(
+  "click",
+  () => {
+    fileInput.click();
+  }
+);
+
+
+fileInput.addEventListener(
+  "change",
+  () => {
+    if (fileInput.files.length) {
+      setFile(fileInput.files[0]);
+    }
+  }
+);
+
+
+// ==========================================
+// DRAG & DROP
+// ==========================================
+
+uploadBox.addEventListener(
+  "dragover",
+  e => {
+    e.preventDefault();
+
+    uploadBox.classList.add(
+      "dragover"
+    );
+  }
+);
+
+
+uploadBox.addEventListener(
+  "dragleave",
+  () => {
+    uploadBox.classList.remove(
+      "dragover"
+    );
+  }
+);
+
+
+uploadBox.addEventListener(
+  "drop",
+  e => {
+
+    e.preventDefault();
+
+    uploadBox.classList.remove(
+      "dragover"
+    );
+
+    if (
+      e.dataTransfer.files.length
+    ) {
+      setFile(
+        e.dataTransfer.files[0]
+      );
+    }
+  }
+);
+
+
+// ==========================================
+// SET FILE
+// ==========================================
+
+function setFile(file) {
+
+  if (
+    !file.name
+      .toLowerCase()
+      .endsWith(".hc")
+  ) {
+    showStatus(
+      "❌ Hanya file .hc yang diperbolehkan",
+      true
+    );
+
+    return;
+  }
+
+  selectedFile = file;
+
+  fileName.textContent =
+    "📄 " + file.name;
+
+  decryptBtn.disabled = false;
+
+  resultBox.innerHTML = "";
+
+  showStatus(
+    "✅ File siap didecrypt",
+    false
+  );
+}
+
+
+// ==========================================
+// DECRYPT
+// ==========================================
+
+decryptBtn.addEventListener(
+  "click",
+  async () => {
+
+    if (!selectedFile) {
+      return;
+    }
+
+    decryptBtn.disabled = true;
+
+    showStatus(
+      "⏳ Sedang decrypt...",
+      false
+    );
+
+    resultBox.innerHTML = "";
+
+    try {
+
+      const formData =
+        new FormData();
+
+      formData.append(
+        "file",
+        selectedFile
+      );
+
+      const response =
+        await fetch(
+          "/api/decrypt",
+          {
+            method: "POST",
+            body: formData
+          }
+        );
+
+      const text =
+        await response.text();
+
+      let data;
+
+      try {
+        data =
+          JSON.parse(text);
+      } catch {
+        throw new Error(
+          text ||
+          "Server tidak mengirim JSON"
+        );
+      }
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        throw new Error(
+          data.error ||
+          "Decrypt gagal"
+        );
+      }
+
+      renderResult(data);
+
+      showStatus(
+        "✅ Decrypt berhasil",
+        false
+      );
+
+    } catch (error) {
+
+      showStatus(
+        "❌ " +
+        (error.message ||
+          "Terjadi kesalahan"),
+        true
+      );
+
+    } finally {
+
+      decryptBtn.disabled = false;
+    }
+  }
+);
+
+
+// ==========================================
+// RENDER RESULT
+// ==========================================
+
+function renderResult(data) {
+
+  resultBox.innerHTML = "";
+
+  const title =
+    document.createElement("div");
+
+  title.className =
+    "result-title";
+
+  title.textContent =
+    "📋 HASIL DECRYPT";
+
+  resultBox.appendChild(title);
+
+
+  const config =
+    data.config || {};
+
+
+  // ========================================
+  // SSH
+  // ========================================
+
+  if (
+    config.sshField ||
+    config.ssh
+  ) {
+
+    let sshText = "";
+
+    if (
+      config.ssh &&
+      config.ssh.host
+    ) {
+
+      sshText =
+        `${config.ssh.host}:${config.ssh.port}@${config.ssh.username}:${config.ssh.password}`;
+
+    } else {
+
+      sshText =
+        String(config.sshField || "");
+    }
+
+
+    if (sshText) {
+
+      const box =
+        document.createElement("div");
+
+      box.className =
+        "ssh-box";
+
+      box.innerHTML = `
+        <div class="ssh-header">
+          <span class="ssh-title">
+            🔑 SSH
+          </span>
+
+          <button
+            class="copy-btn"
+            data-copy="${escapeAttribute(sshText)}"
+          >
+            COPY
+          </button>
+        </div>
+
+        <div class="ssh-value">
+          ${escapeHtml(sshText)}
+        </div>
+      `;
+
+      resultBox.appendChild(box);
+
+      attachCopy(box);
+    }
+  }
+
+
+  // ========================================
+  // FIELD LAIN
+  // ========================================
+
+  const skip = [
+    "ssh",
+    "sshField"
+  ];
+
+
+  for (
+    const [key, value]
+    of Object.entries(config)
+  ) {
+
+    if (
+      skip.includes(key)
+    ) {
+      continue;
+    }
+
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      continue;
+    }
+
+
+    const text =
+      formatValue(value);
+
+
+    const field =
+      document.createElement("div");
+
+    field.className =
+      "field";
+
+    field.innerHTML = `
+      <div class="field-header">
+        <span class="field-title">
+          ${escapeHtml(
+            prettyName(key)
+          )}
+        </span>
 
         <button
-          type="button"
-          id="copyBtn"
           class="copy-btn"
+          data-copy="${escapeAttribute(text)}"
         >
-          Copy
+          COPY
         </button>
       </div>
 
-      <pre id="result"></pre>
+      <div class="field-value">
+        ${escapeHtml(text)}
+      </div>
+    `;
 
-    </div>
+    resultBox.appendChild(field);
 
-  </div>
+    attachCopy(field);
+  }
 
-  <script src="/app.js"></script>
 
-</body>
+  // ========================================
+  // PROTECTIONS
+  // ========================================
+
+  if (
+    data.protections &&
+    Object.keys(
+      data.protections
+    ).length
+  ) {
+
+    const pTitle =
+      document.createElement("div");
+
+    pTitle.style.marginTop =
+      "25px";
+
+    pTitle.style.marginBottom =
+      "12px";
+
+    pTitle.style.fontWeight =
+      "bold";
+
+    pTitle.textContent =
+      "🛡️ PROTECTION";
+
+    resultBox.appendChild(
+      pTitle
+    );
+
+
+    for (
+      const [key, value]
+      of Object.entries(
+        data.protections
+      )
+    ) {
+
+      if (
+        value === null ||
+        value === undefined ||
+        value === ""
+      ) {
+        continue;
+      }
+
+      const text =
+        formatValue(value);
+
+      const field =
+        document.createElement("div");
+
+      field.className =
+        "field";
+
+      field.innerHTML = `
+        <div class="field-header">
+          <span class="field-title">
+            ${escapeHtml(
+              prettyName(key)
+            )}
+          </span>
+
+          <button
+            class="copy-btn"
+            data-copy="${escapeAttribute(text)}"
+          >
+            COPY
+          </button>
+        </div>
+
+        <div class="field-value">
+          ${escapeHtml(text)}
+        </div>
+      `;
+
+      resultBox.appendChild(field);
+
+      attachCopy(field);
+    }
+  }
+
+
+  if (
+    !resultBox.querySelector(".field") &&
+    !resultBox.querySelector(".ssh-box")
+  ) {
+
+    resultBox.innerHTML += `
+      <div class="empty">
+        ⚠️ Tidak ada data yang berhasil ditemukan.
+      </div>
+    `;
+  }
+}
+
+
+// ==========================================
+// PRETTY NAME
+// ==========================================
+
+function prettyName(key) {
+
+  const names = {
+
+    payload:
+      "📡 PAYLOAD",
+
+    proxy:
+      "🌐 PROXY",
+
+    sni:
+      "🔗 SNI",
+
+    notes:
+      "📝 NOTES",
+
+    ovpnConfig:
+      "📄 OVPN CONFIG",
+
+    ovpnUserAndPass:
+      "🔐 OVPN USER & PASSWORD",
+
+    unlockUserAndPass:
+      "🔓 UNLOCK USER & PASSWORD",
+
+    unlockUserAndPass2:
+      "🔓 UNLOCK USER & PASSWORD 2",
+
+    name:
+      "🏷️ NAME",
+
+    expiryTime:
+      "⏰ EXPIRY TIME",
+
+    version:
+      "📦 VERSION",
+
+    connectionMode:
+      "🔌 CONNECTION MODE",
+
+    dnsResolver:
+      "🌍 DNS RESOLVER",
+
+    slowdnsServer:
+      "🐌 SLOWDNS SERVER",
+
+    slowdnsPublickey:
+      "🔑 SLOWDNS PUBLIC KEY",
+
+    v2rayConfig:
+      "🚀 V2RAY CONFIG",
+
+    cloudconfig:
+      "☁️ CLOUD CONFIG",
+
+    psiphon:
+      "🛡️ PSIPHON",
+
+    blockArea:
+      "📍 BLOCK AREA",
+
+    blockedByHwid:
+      "🔒 BLOCKED BY HWID",
+
+    blockedByPassword:
+      "🔒 BLOCKED BY PASSWORD",
+
+    blockedByRoot:
+      "🔒 BLOCKED BY ROOT"
+
+  };
+
+  return (
+    names[key] ||
+    key
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, x =>
+        x.toUpperCase()
+      )
+  );
+}
+
+
+// ==========================================
+// FORMAT VALUE
+// ==========================================
+
+function formatValue(value) {
+
+  if (
+    typeof value === "object"
+  ) {
+
+    try {
+
+      return JSON.stringify(
+        value,
+        null,
+        2
+      );
+
+    } catch {
+
+      return String(value);
+    }
+  }
+
+  return String(value);
+}
+
+
+// ==========================================
+// COPY
+// ==========================================
+
+function attachCopy(parent) {
+
+  const button =
+    parent.querySelector(
+      ".copy-btn"
+    );
+
+  if (!button) return;
+
+  button.addEventListener(
+    "click",
+    async () => {
+
+      const text =
+        button.dataset.copy;
+
+      try {
+
+        await navigator.clipboard.writeText(
+          text
+        );
+
+        const old =
+          button.textContent;
+
+        button.textContent =
+          "COPIED ✓";
+
+        setTimeout(() => {
+          button.textContent =
+            old;
+        }, 1200);
+
+      } catch {
+
+        // fallback
+        const textarea =
+          document.createElement(
+            "textarea"
+          );
+
+        textarea.value =
+          text;
+
+        document.body.appendChild(
+          textarea
+        );
+
+        textarea.select();
+
+        document.execCommand(
+          "copy"
+        );
+
+        textarea.remove();
+
+        button.textContent =
+          "COPIED ✓";
+
+        setTimeout(() => {
+          button.textContent =
+            "COPY";
+        }, 1200);
+      }
+    }
+  );
+}
+
+
+// ==========================================
+// ESCAPE
+// ==========================================
+
+function escapeHtml(value) {
+
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
+function escapeAttribute(value) {
+
+  return escapeHtml(
+    value
+  ).replace(
+    /\n/g,
+    "&#10;"
+  );
+}
+
+
+// ==========================================
+// STATUS
+// ==========================================
+
+function showStatus(
+  message,
+  error
+) {
+
+  statusBox.style.display =
+    "block";
+
+  statusBox.textContent =
+    message;
+
+  statusBox.style.color =
+    error
+      ? "#f87171"
+      : "#4ade80";
+}
+
+</script></body>
 </html>
