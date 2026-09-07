@@ -2,28 +2,34 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 
-const hcDecrypt = require("./decryptors/hc");
-const ehiDecrypt = require("./decryptors/ehi");
+const hcDecrypt =
+  require("./decryptors/hc");
+
+const upload = multer({
+  storage: multer.memoryStorage()
+});
 
 const app = express();
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 20 * 1024 * 1024
-  }
-});
-
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.urlencoded({
+  extended: true
+}));
 
+app.use(
+  express.static(
+    path.join(__dirname, "public")
+  )
+);
+
+// ==========================================
+// API DECRYPT HC
+// ==========================================
 
 app.post(
   "/api/decrypt",
   upload.single("file"),
-  async (req, res) => {
-
+  (req, res) => {
     try {
 
       if (!req.file) {
@@ -36,76 +42,67 @@ app.post(
       const filename =
         req.file.originalname.toLowerCase();
 
-      let result;
-
-      if (filename.endsWith(".hc")) {
-
-        result =
-          await hcDecrypt(
-            req.file.buffer
-          );
-
-      } else if (
-        filename.endsWith(".ehi")
-      ) {
-
-        result =
-          await ehiDecrypt(
-            req.file.buffer
-          );
-
-      } else {
-
+      // Hanya HC
+      if (!filename.endsWith(".hc")) {
         return res.status(400).json({
           success: false,
-          error: "Format harus .hc atau .ehi"
+          error:
+            "Format tidak didukung. Upload file .hc"
         });
+      }
 
+      const result =
+        hcDecrypt(req.file.buffer);
+
+      if (!result.success) {
+        return res.status(400).json(result);
       }
 
       return res.json(result);
 
-    } catch (error) {
+    } catch (e) {
 
-      console.error(
-        "DECRYPT ERROR:",
-        error
-      );
+      console.error(e);
 
       return res.status(500).json({
         success: false,
         error:
-          error.message ||
-          "Decrypt gagal"
+          e.message ||
+          "Internal server error"
       });
-
     }
   }
 );
 
+// ==========================================
+// HEALTH CHECK
+// ==========================================
 
-app.get("/api/status", (req, res) => {
-
+app.get("/api", (req, res) => {
   res.json({
     success: true,
-    service: "DINSTORE Decryptor",
-    formats: [
-      ".hc",
-      ".ehi"
-    ]
+    name: "DINSTORE HC Decryptor",
+    format: ".hc"
   });
-
 });
 
+// ==========================================
+// EXPORT
+// ==========================================
 
-const PORT =
-  process.env.PORT || 3000;
+module.exports = app;
 
-app.listen(
-  PORT,
-  () => {
+// ==========================================
+// RUN LANGSUNG
+// ==========================================
+
+if (require.main === module) {
+  const PORT =
+    process.env.PORT || 3000;
+
+  app.listen(PORT, () => {
     console.log(
-      `DINSTORE Decryptor running on port ${PORT}`
+      `DINSTORE HC Decryptor running on port ${PORT}`
     );
-  }
-);
+  });
+}
