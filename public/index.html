@@ -2,17 +2,17 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>HTTP Custom Decryptor</title>
+  <title>VPN Config Decryptor Tools</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-6 flex items-center justify-center">
   <div class="max-w-md w-full space-y-6">
-    <h1 class="text-2xl font-bold text-center text-emerald-400">HTTP Custom Decryptor</h1>
+    <h1 class="text-2xl font-bold text-center text-emerald-400">VPN Config Decryptor</h1>
 
     <div class="bg-slate-800 p-5 rounded-xl shadow space-y-4">
       <div>
-        <label class="block text-xs text-slate-400 mb-1">Upload File .hc:</label>
-        <input type="file" id="hcFile" class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-500 file:text-slate-950 hover:file:bg-emerald-400"/>
+        <label class="block text-xs text-slate-400 mb-1">Upload File Config (.hc, .ehi, dll):</label>
+        <input type="file" id="configFile" class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-500 file:text-slate-950 hover:file:bg-emerald-400"/>
       </div>
       <button onclick="decryptFile()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2 rounded font-medium transition">Decrypt File</button>
     </div>
@@ -28,8 +28,8 @@
 
   <script>
     async function decryptFile() {
-      const fileInput = document.getElementById('hcFile').files[0];
-      if (!fileInput) return alert('Pilih file .hc terlebih dahulu!');
+      const fileInput = document.getElementById('configFile').files[0];
+      if (!fileInput) return alert('Pilih file konfigurasi terlebih dahulu!');
       
       const formData = new FormData();
       formData.append('file', fileInput);
@@ -39,9 +39,9 @@
         const res = await fetch('/api/decrypt', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
-          document.getElementById('output').value = JSON.stringify(data.config, null, 2);
+          document.getElementById('output').value = JSON.stringify(data.config || data, null, 2);
         } else {
-          document.getElementById('output').value = "Error: " + data.error;
+          document.getElementById('output').value = "Error: " + (data.error || "Gagal mendekripsi");
         }
       } catch (e) {
         document.getElementById('output').value = "Gagal menghubungi server.";
