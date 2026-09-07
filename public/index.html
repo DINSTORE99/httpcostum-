@@ -12,10 +12,7 @@
 
   <title>DINSTORE Decryptor</title>
 
-  <link
-    rel="stylesheet"
-    href="/style.css"
-  >
+  <link rel="stylesheet" href="/style.css">
 
 </head>
 
@@ -23,101 +20,153 @@
 
   <main class="container">
 
-    <div class="logo">
-      D
-    </div>
+    <section class="card">
 
-    <h1>
-      DINSTORE
-      <span>Decryptor</span>
-    </h1>
-
-    <p class="description">
-      Upload file konfigurasi untuk diproses.
-    </p>
-
-
-    <section
-      class="upload"
-      id="upload"
-    >
-
-      <input
-        type="file"
-        id="fileInput"
-        hidden
-      >
-
-      <div class="upload-icon">
-        ↑
+      <div class="logo">
+        DINSTORE
       </div>
 
-      <h2>
-        Upload File
-      </h2>
+      <h1>Decryptor</h1>
 
-      <p>
-        Klik atau tarik file ke area ini
+      <p class="subtitle">
+        Buka dan baca file konfigurasi
       </p>
 
-      <button
-        id="selectFile"
-        type="button"
+      <!-- UPLOAD -->
+
+      <div
+        class="upload-box"
+        id="dropArea"
       >
-        Pilih File
+
+        <div class="upload-icon">
+          📁
+        </div>
+
+        <h3>
+          Pilih File
+        </h3>
+
+        <p>
+          .HC • .DARK • .EHI • .NPV • .SCC
+        </p>
+
+        <input
+          type="file"
+          id="fileInput"
+          hidden
+        >
+
+        <button
+          class="btn"
+          id="chooseBtn"
+        >
+          Pilih File
+        </button>
+
+      </div>
+
+      <!-- FILE PREVIEW -->
+
+      <div
+        class="file-preview"
+        id="filePreview"
+        style="display:none"
+      >
+
+        <div class="file-info">
+
+          <span class="file-icon">
+            📄
+          </span>
+
+          <div>
+
+            <strong id="fileName">
+              -
+            </strong>
+
+            <small id="fileSize">
+              -
+            </small>
+
+          </div>
+
+        </div>
+
+        <button
+          class="remove-btn"
+          id="removeBtn"
+        >
+          ✕
+        </button>
+
+      </div>
+
+      <!-- OPEN BUTTON -->
+
+      <button
+        class="open-btn"
+        id="openBtn"
+        disabled
+      >
+        🔓 Buka File
+      </button>
+
+      <!-- STATUS -->
+
+      <div
+        class="message"
+        id="message"
+      ></div>
+
+    </section>
+
+    <!-- RESULT -->
+
+    <section
+      class="result-card"
+      id="resultCard"
+      style="display:none"
+    >
+
+      <div class="result-header">
+
+        <div>
+
+          <h2>
+            📄 Hasil File
+          </h2>
+
+          <span id="resultName">
+            -
+          </span>
+
+        </div>
+
+        <button
+          class="copy-btn"
+          id="copyBtn"
+        >
+          📋 Salin
+        </button>
+
+      </div>
+
+      <pre
+        id="result"
+      ></pre>
+
+      <button
+        class="download-btn"
+        id="downloadBtn"
+      >
+        💾 Download Hasil
       </button>
 
     </section>
 
-
-    <div
-      class="file"
-      id="fileInfo"
-      hidden
-    >
-
-      <div class="file-icon">
-        FILE
-      </div>
-
-      <div class="file-data">
-
-        <strong id="fileName">
-          -
-        </strong>
-
-        <small id="fileSize">
-          -
-        </small>
-
-      </div>
-
-      <button
-        id="removeFile"
-        type="button"
-      >
-        ×
-      </button>
-
-    </div>
-
-
-    <button
-      id="uploadBtn"
-      class="upload-btn"
-      disabled
-    >
-      Upload File
-    </button>
-
-
-    <div
-      id="message"
-      class="message"
-    ></div>
-
   </main>
-
 
   <script src="/app.js"></script>
 
