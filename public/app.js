@@ -1,63 +1,65 @@
+const uploadBox = document.getElementById("uploadBox");
 const fileInput = document.getElementById("fileInput");
-const selectBtn = document.getElementById("selectBtn");
+const fileName = document.getElementById("fileName");
 const decryptBtn = document.getElementById("decryptBtn");
-
-const fileText = document.getElementById("fileText");
 const statusBox = document.getElementById("status");
-
-const resultBox = document.getElementById("resultBox");
-const result = document.getElementById("result");
-const copyBtn = document.getElementById("copyBtn");
-
-const dropZone = document.getElementById("dropZone");
+const resultBox = document.getElementById("result");
 
 let selectedFile = null;
 
 
-// ==============================
-// PILIH FILE
-// ==============================
+// =========================
+// FILE SELECT
+// =========================
 
-selectBtn.addEventListener("click", function (e) {
-  e.preventDefault();
-  e.stopPropagation();
-
-  fileInput.click();
-});
-
-
-// Klik area upload
-dropZone.addEventListener("click", function (e) {
-
-  if (e.target === selectBtn) return;
-
-  fileInput.click();
-
-});
-
-
-// ==============================
-// FILE DIPILIH
-// ==============================
-
-fileInput.addEventListener("change", function () {
-
-  if (!fileInput.files || fileInput.files.length === 0) {
-    return;
-  }
-
+fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
 
-  const name = file.name.toLowerCase();
+  if (!file) return;
 
-  if (!name.endsWith(".hc") && !name.endsWith(".ehi")) {
+  setFile(file);
+});
+
+
+// =========================
+// DRAG & DROP
+// =========================
+
+uploadBox.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  uploadBox.classList.add("dragover");
+});
+
+uploadBox.addEventListener("dragleave", () => {
+  uploadBox.classList.remove("dragover");
+});
+
+uploadBox.addEventListener("drop", (e) => {
+  e.preventDefault();
+
+  uploadBox.classList.remove("dragover");
+
+  const file = e.dataTransfer.files[0];
+
+  if (file) {
+    setFile(file);
+  }
+});
+
+
+// =========================
+// SET FILE
+// =========================
+
+function setFile(file) {
+
+  if (!file.name.toLowerCase().endsWith(".hc")) {
 
     showStatus(
-      "❌ File harus berformat .hc atau .ehi",
+      "❌ Hanya file .HC yang diperbolehkan",
       "error"
     );
 
-    fileInput.value = "";
     selectedFile = null;
     decryptBtn.disabled = true;
 
@@ -66,104 +68,37 @@ fileInput.addEventListener("change", function () {
 
   selectedFile = file;
 
-  fileText.textContent =
-    `${file.name} (${formatBytes(file.size)})`;
+  fileName.textContent =
+    "📄 " + file.name;
+
+  fileName.style.display = "block";
 
   decryptBtn.disabled = false;
 
   showStatus(
-    "✅ File siap di-decrypt",
+    "✅ File siap dibongkar",
     "success"
   );
-
-});
-
-
-// ==============================
-// DRAG & DROP
-// ==============================
-
-dropZone.addEventListener("dragover", function (e) {
-
-  e.preventDefault();
-
-  dropZone.classList.add("drag");
-
-});
+}
 
 
-dropZone.addEventListener("dragleave", function () {
-
-  dropZone.classList.remove("drag");
-
-});
-
-
-dropZone.addEventListener("drop", function (e) {
-
-  e.preventDefault();
-
-  dropZone.classList.remove("drag");
-
-  const files = e.dataTransfer.files;
-
-  if (!files || files.length === 0) {
-    return;
-  }
-
-  const file = files[0];
-
-  const name = file.name.toLowerCase();
-
-  if (!name.endsWith(".hc") && !name.endsWith(".ehi")) {
-
-    showStatus(
-      "❌ File harus .hc atau .ehi",
-      "error"
-    );
-
-    return;
-  }
-
-  selectedFile = file;
-
-  fileText.textContent =
-    `${file.name} (${formatBytes(file.size)})`;
-
-  decryptBtn.disabled = false;
-
-  showStatus(
-    "✅ File siap di-decrypt",
-    "success"
-  );
-
-});
-
-
-// ==============================
+// =========================
 // DECRYPT
-// ==============================
+// =========================
 
-decryptBtn.addEventListener("click", async function () {
+decryptBtn.addEventListener("click", async () => {
 
-  if (!selectedFile) {
-
-    showStatus(
-      "❌ Pilih file terlebih dahulu",
-      "error"
-    );
-
-    return;
-  }
+  if (!selectedFile) return;
 
   decryptBtn.disabled = true;
 
-  decryptBtn.textContent = "⏳ Processing...";
+  decryptBtn.innerHTML =
+    "⏳ MEMPROSES...";
 
-  resultBox.hidden = true;
+  resultBox.innerHTML = "";
 
   showStatus(
-    "🔐 Sedang melakukan decrypt...",
+    "🔄 Sedang membongkar config...",
     "loading"
   );
 
@@ -173,10 +108,8 @@ decryptBtn.addEventListener("click", async function () {
 
     formData.append(
       "file",
-      selectedFile,
-      selectedFile.name
+      selectedFile
     );
-
 
     const response = await fetch(
       "/api/decrypt",
@@ -186,103 +119,30 @@ decryptBtn.addEventListener("click", async function () {
       }
     );
 
-
     const text = await response.text();
 
-    let data = null;
+    let data;
 
     try {
-
-      data = text
-        ? JSON.parse(text)
-        : null;
-
-    } catch (err) {
-
-      console.error(
-        "Response bukan JSON:",
-        text
-      );
-
+      data = JSON.parse(text);
+    } catch {
       throw new Error(
-        `Server mengembalikan response tidak valid (HTTP ${response.status})`
+        text || "Server tidak mengembalikan JSON"
       );
-
     }
 
-
-    if (!response.ok) {
-
+    if (!response.ok || !data.success) {
       throw new Error(
-        data?.error ||
-        data?.message ||
-        `HTTP ${response.status}`
+        data.error || "Gagal membongkar config"
       );
-
     }
 
-
-    if (!data) {
-
-      throw new Error(
-        "Server mengembalikan response kosong"
-      );
-
-    }
-
-
-    if (data.success === false) {
-
-      throw new Error(
-        data.error ||
-        "Decrypt gagal"
-      );
-
-    }
-
-
-    // ==========================
-    // TAMPILKAN HASIL
-    // ==========================
-
-    let output;
-
-    if (typeof data.result === "string") {
-
-      output = data.result;
-
-    } else if (typeof data.output === "string") {
-
-      output = data.output;
-
-    } else if (data.data) {
-
-      output = JSON.stringify(
-        data.data,
-        null,
-        2
-      );
-
-    } else {
-
-      output = JSON.stringify(
-        data,
-        null,
-        2
-      );
-
-    }
-
-
-    result.textContent = output;
-
-    resultBox.hidden = false;
+    renderResult(data);
 
     showStatus(
-      "✅ Decrypt berhasil",
+      "✅ Config berhasil dibongkar",
       "success"
     );
-
 
   } catch (error) {
 
@@ -295,88 +155,24 @@ decryptBtn.addEventListener("click", async function () {
 
   } finally {
 
-    decryptBtn.disabled = !selectedFile;
+    decryptBtn.disabled = false;
 
-    decryptBtn.textContent = "🔓 Decrypt";
-
+    decryptBtn.innerHTML =
+      "🔓 BONGKAR CONFIG";
   }
-
 });
 
 
-// ==============================
-// COPY
-// ==============================
-
-copyBtn.addEventListener("click", async function () {
-
-  try {
-
-    await navigator.clipboard.writeText(
-      result.textContent
-    );
-
-    copyBtn.textContent = "Copied!";
-
-    setTimeout(() => {
-
-      copyBtn.textContent = "Copy";
-
-    }, 1500);
-
-  } catch (error) {
-
-    showStatus(
-      "❌ Gagal menyalin hasil",
-      "error"
-    );
-
-  }
-
-});
-
-
-// ==============================
+// =========================
 // STATUS
-// ==============================
+// =========================
 
-function showStatus(message, type) {
+function showStatus(message, type = "") {
 
   statusBox.textContent = message;
 
   statusBox.className =
     "status " + type;
 
-}
-
-
-// ==============================
-// FORMAT SIZE
-// ==============================
-
-function formatBytes(bytes) {
-
-  if (bytes === 0) {
-    return "0 Bytes";
-  }
-
-  const units = [
-    "Bytes",
-    "KB",
-    "MB",
-    "GB"
-  ];
-
-  const i = Math.floor(
-    Math.log(bytes) / Math.log(1024)
-  );
-
-  return (
-    parseFloat(
-      (bytes / Math.pow(1024, i)).toFixed(2)
-    ) +
-    " " +
-    units[i]
-  );
-
+  statusBox.style.display = "block";
 }
