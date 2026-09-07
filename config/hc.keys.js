@@ -1,13 +1,9 @@
+const crypto = require("crypto");
+
 module.exports = {
+  initialXor: Buffer.from("e382e4b8adc386f09f9293", "hex"),
 
-  initialXor:
-    Buffer.from(
-      "e382e4b8adc386f09f9293",
-      "hex"
-    ),
-
-  nonce:
-    Buffer.alloc(8, 0xdb),
+  nonce: Buffer.alloc(8, 0xdb),
 
   keys: [
     "2be4342943c6f91ff58987f41a1aafd179eeb4e053f5cea55b11d6a7db58bd7d",
@@ -45,13 +41,9 @@ module.exports = {
     255,254,253,252
   ]),
 
-  rstXor:
-    Buffer.from(
-      Array.from(
-        {length:20},
-        (_,i) => i + 2
-      )
-    ),
+  rstXor: Buffer.from(
+    Array.from({ length: 20 }, (_, i) => i + 2)
+  ),
 
   braille:
     "⠁⠃⠉⠙⠑⠋⠛⠓⠊⠚⠅⠇⠍⠝⠕⠏⠟⠗⠎⠞⠥⠧⠺⠭⠽⠵⠼⠁⠼⠃⠼⠉⠼⠙⠼⠑⠼⠋⠼⠛⠼⠓⠼⠊⠼⠚",
@@ -90,5 +82,4 @@ module.exports = {
     "slowdnsPublickey",
     "dnsResolver"
   ]
-
 };
