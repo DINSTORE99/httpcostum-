@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>HTTP Custom Web Tools</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-6">
+  <div class="max-w-2xl mx-auto space-y-6">
+    <h1 class="text-2xl font-bold text-center text-emerald-400">HTTP Custom Web Tools</h1>
+
+    <div class="bg-slate-800 p-5 rounded-xl shadow space-y-4">
+      <h2 class="font-semibold text-blue-300">Generator Config Berdasarkan Bug</h2>
+      
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Pilih Operator:</label>
+        <select id="operatorSelect" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-100">
+          <option value="">Memuat operator...</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Kredensial SSH (host:port@username:password):</label>
+        <input type="text" id="credential" placeholder="id-biznett.suneku.web.id:443@sunek:ssh7k" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-100"/>
+      </div>
+
+      <button onclick="generateConfig()" class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded font-medium transition">Generate Config</button>
+    </div>
+
+    <div class="bg-slate-800 p-5 rounded-xl shadow space-y-3">
+      <h2 class="font-semibold text-yellow-300">Hasil Output Config</h2>
+      <textarea id="output" rows="8" class="w-full bg-slate-900 border border-slate-700 rounded p-3 text-xs font-mono text-emerald-300" readonly></textarea>
+    </div>
+  </div>
+
+  <script>
+    window.onload = async () => {
+      try {
+        const res = await fetch('/api/operators');
+        const data = await res.json();
+        const select = document.getElementById('operatorSelect');
+        if (data.success && data.operators.length > 0) {
+          select.innerHTML = data.operators.map(op => `<option value="${op}">${op.toUpperCase()}</option>`).join('');
+        } else {
+          select.innerHTML = '<option value="">Tidak ada file bug ditemukan</option>';
+        }
+      } catch (e) {
+        console.error("Gagal memuat operator");
+      }
+    };
+
+    async function generateConfig() {
+      const operator = document.getElementById('operatorSelect').value;
+      const credential = document.getElementById('credential').value;
+      if (!operator || !credential) return alert('Pilih operator dan masukkan kredensial!');
+      
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator, credential })
+      });
+      const data = await res.json();
+      document.getElementById('output').value = data.success ? data.rawConfig : data.error;
+    }
+  </script>
+</body>
+</html>
+
