@@ -1,175 +1,139 @@
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
-
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>DINSTORE Decryptor</title>
 
   <link rel="stylesheet" href="/style.css">
-
 </head>
 
 <body>
 
-  <main class="container">
+<div class="container">
 
-    <section class="card">
+  <div class="header">
+    <div class="logo">DINSTORE</div>
+    <h1>Config Decryptor</h1>
+    <p>Buka dan decrypt file HTTP Custom</p>
+  </div>
 
-      <div class="logo">
-        DINSTORE
-      </div>
+  <!-- UPLOAD -->
 
-      <h1>Decryptor</h1>
+  <div class="card">
 
-      <p class="subtitle">
-        Buka dan baca file konfigurasi
+    <div id="dropArea" class="drop-area">
+
+      <div class="icon">📁</div>
+
+      <h3>Upload File</h3>
+
+      <p>
+        Pilih file <b>.HC</b>
       </p>
 
-      <!-- UPLOAD -->
-
-      <div
-        class="upload-box"
-        id="dropArea"
+      <input
+        type="file"
+        id="fileInput"
+        accept=".hc"
+        hidden
       >
 
-        <div class="upload-icon">
-          📁
-        </div>
-
-        <h3>
-          Pilih File
-        </h3>
-
-        <p>
-          .HC • .DARK • .EHI • .NPV • .SCC
-        </p>
-
-        <input
-          type="file"
-          id="fileInput"
-          hidden
-        >
-
-        <button
-          class="btn"
-          id="chooseBtn"
-        >
-          Pilih File
-        </button>
-
-      </div>
-
-      <!-- FILE PREVIEW -->
-
-      <div
-        class="file-preview"
-        id="filePreview"
-        style="display:none"
-      >
-
-        <div class="file-info">
-
-          <span class="file-icon">
-            📄
-          </span>
-
-          <div>
-
-            <strong id="fileName">
-              -
-            </strong>
-
-            <small id="fileSize">
-              -
-            </small>
-
-          </div>
-
-        </div>
-
-        <button
-          class="remove-btn"
-          id="removeBtn"
-        >
-          ✕
-        </button>
-
-      </div>
-
-      <!-- OPEN BUTTON -->
-
-      <button
-        class="open-btn"
-        id="openBtn"
-        disabled
-      >
-        🔓 Buka File
+      <button id="chooseBtn">
+        Pilih File
       </button>
 
-      <!-- STATUS -->
+    </div>
 
-      <div
-        class="message"
-        id="message"
-      ></div>
+    <!-- FILE -->
 
-    </section>
-
-    <!-- RESULT -->
-
-    <section
-      class="result-card"
-      id="resultCard"
+    <div
+      id="fileBox"
+      class="file-box"
       style="display:none"
     >
 
-      <div class="result-header">
-
-        <div>
-
-          <h2>
-            📄 Hasil File
-          </h2>
-
-          <span id="resultName">
-            -
-          </span>
-
-        </div>
-
-        <button
-          class="copy-btn"
-          id="copyBtn"
-        >
-          📋 Salin
-        </button>
-
+      <div>
+        <div id="fileName"></div>
+        <small id="fileSize"></small>
       </div>
 
-      <pre
-        id="result"
-      ></pre>
-
-      <button
-        class="download-btn"
-        id="downloadBtn"
-      >
-        💾 Download Hasil
+      <button id="removeBtn">
+        ✕
       </button>
 
-    </section>
+    </div>
 
-  </main>
+    <!-- DECRYPT -->
 
-  <script src="/app.js"></script>
+    <button
+      id="decryptBtn"
+      class="decrypt-btn"
+      disabled
+    >
+      🔓 Buka File
+    </button>
+
+    <div id="status"></div>
+
+  </div>
+
+
+  <!-- RESULT -->
+
+  <div
+    id="resultCard"
+    class="card result-card"
+    style="display:none"
+  >
+
+    <div class="result-title">
+
+      <div>
+        <h2>✅ Hasil Decrypt</h2>
+
+        <small id="resultFormat"></small>
+      </div>
+
+      <button id="copyBtn">
+        📋 Salin
+      </button>
+
+    </div>
+
+
+    <!-- CONFIG -->
+
+    <div id="configResult"></div>
+
+
+    <!-- PROTECTION -->
+
+    <div id="protectionSection">
+
+      <h3>🛡️ Protections</h3>
+
+      <pre id="protections"></pre>
+
+    </div>
+
+
+    <!-- RAW -->
+
+    <div>
+
+      <h3>📄 Raw Config</h3>
+
+      <pre id="raw"></pre>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script src="/app.js"></script>
 
 </body>
-
 </html>
