@@ -10,55 +10,43 @@ scroll-behavior: smooth;
 
 body {
 min-height: 100vh;
-
-font-family:
-Inter,
--apple-system,
-BlinkMacSystemFont,
-"Segoe UI",
-Arial,
-sans-serif;
-
+font-family: Arial, Helvetica, sans-serif;
 color: #e5e7eb;
 
 background:
 radial-gradient(
-circle at 50% -10%,
-#1e3a8a 0,
-#0f172a 35%,
-#020617 75%
+circle at top,
+#172554 0%,
+#0f172a 38%,
+#020617 100%
 );
 }
 
-/* ========================================
+/* ================================
 CONTAINER
-======================================== */
+================================ */
 
 .container {
 width: 100%;
-max-width: 900px;
-
+max-width: 850px;
 min-height: 100vh;
 
 margin: auto;
-
-padding:
-35px 16px 25px;
+padding: 35px 16px 25px;
 }
 
-/* ========================================
+/* ================================
 HEADER
-======================================== */
+================================ */
 
 .header {
 text-align: center;
-
 margin-bottom: 30px;
 }
 
 .logo {
-width: 72px;
-height: 72px;
+width: 70px;
+height: 70px;
 
 margin: 0 auto 15px;
 
@@ -66,9 +54,9 @@ display: flex;
 align-items: center;
 justify-content: center;
 
-border-radius: 22px;
+border-radius: 20px;
 
-font-size: 34px;
+font-size: 32px;
 
 background:
 linear-gradient(
@@ -78,20 +66,16 @@ linear-gradient(
 );
 
 box-shadow:
-0 15px 40px
-rgba(37, 99, 235, .3);
+0 15px 40px rgba(37, 99, 235, .3);
 }
 
 .header h1 {
 color: #ffffff;
 
-font-size: 30px;
-
+font-size: 29px;
 font-weight: 800;
 
-letter-spacing: 1px;
-
-line-height: 1.2;
+letter-spacing: .5px;
 }
 
 .header p {
@@ -102,68 +86,63 @@ color: #94a3b8;
 font-size: 14px;
 }
 
-/* ========================================
+/* ================================
 UPLOAD CARD
-======================================== */
+================================ */
 
 .upload-card {
 padding: 18px;
 
-border:
-1px solid
-rgba(148, 163, 184, .13);
+border: 1px solid rgba(148, 163, 184, .12);
 
 border-radius: 20px;
 
 background:
-rgba(15, 23, 42, .72);
+rgba(15, 23, 42, .82);
 
-backdrop-filter:
-blur(18px);
-
--webkit-backdrop-filter:
-blur(18px);
+backdrop-filter: blur(15px);
 
 box-shadow:
-0 25px 60px
-rgba(0, 0, 0, .28);
+0 25px 60px rgba(0, 0, 0, .3);
 }
 
-/* ========================================
+/* ================================
 UPLOAD BOX
-======================================== */
+================================ */
 
 .upload-box {
-position: relative;
+display: block;
 
-padding:
-45px 20px;
+width: 100%;
+
+padding: 45px 20px;
 
 text-align: center;
 
-border:
-2px dashed
-#334155;
+border: 2px dashed #334155;
 
 border-radius: 16px;
 
 background:
-rgba(2, 6, 23, .45);
+rgba(2, 6, 23, .5);
 
 cursor: pointer;
 
+user-select: none;
+
 transition:
-.25s ease;
+border-color .2s ease,
+background .2s ease,
+transform .2s ease;
 }
 
 .upload-box:hover {
 border-color: #3b82f6;
 
 background:
-rgba(30, 41, 59, .55);
+rgba(30, 41, 59, .6);
 
-transform:
-translateY(-2px);
+transform: translateY(-2px);
 }
 
 .upload-box.dragover {
@@ -172,26 +151,29 @@ border-color: #60a5fa;
 background:
 rgba(37, 99, 235, .12);
 
-transform:
-scale(1.01);
+transform: scale(1.01);
 }
 
-/* ========================================
+/* ================================
 UPLOAD CONTENT
-======================================== */
+================================ */
 
 .upload-icon {
 margin-bottom: 12px;
 
-font-size: 45px;
+font-size: 46px;
+
+pointer-events: none;
 }
 
 .upload-box h2 {
+margin-bottom: 7px;
+
 color: #ffffff;
 
 font-size: 20px;
 
-margin-bottom: 7px;
+pointer-events: none;
 }
 
 .upload-box p {
@@ -200,6 +182,8 @@ color: #94a3b8;
 font-size: 13px;
 
 line-height: 1.5;
+
+pointer-events: none;
 }
 
 .format {
@@ -207,12 +191,9 @@ display: inline-block;
 
 margin-top: 14px;
 
-padding:
-5px 11px;
+padding: 6px 12px;
 
-border:
-1px solid
-rgba(59, 130, 246, .25);
+border: 1px solid rgba(59, 130, 246, .3);
 
 border-radius: 7px;
 
@@ -226,45 +207,57 @@ font-size: 11px;
 font-weight: 700;
 
 letter-spacing: .5px;
+
+pointer-events: none;
 }
+
+/* ================================
+FILE INPUT
+================================ */
 
 #fileInput {
-display: none;
+position: absolute;
+
+width: 1px;
+height: 1px;
+
+opacity: 0;
+
+pointer-events: none;
 }
 
-/* ========================================
+/* ================================
 FILE NAME
-======================================== */
+================================ */
 
 .file-name {
 display: none;
 
-max-width: 100%;
+width: 100%;
 
 margin-top: 16px;
 
-padding:
-10px 12px;
+padding: 10px 12px;
 
-border:
-1px solid
-rgba(59, 130, 246, .2);
+border: 1px solid rgba(59, 130, 246, .25);
 
 border-radius: 9px;
 
 background:
-rgba(30, 41, 59, .7);
+rgba(30, 41, 59, .8);
 
 color: #60a5fa;
 
 font-size: 13px;
 
 word-break: break-all;
+
+pointer-events: none;
 }
 
-/* ========================================
+/* ================================
 DECRYPT BUTTON
-======================================== */
+================================ */
 
 .decrypt-btn {
 width: 100%;
@@ -273,7 +266,7 @@ margin-top: 14px;
 
 padding: 15px;
 
-border: none;
+border: 0;
 
 border-radius: 12px;
 
@@ -290,34 +283,26 @@ font-size: 15px;
 
 font-weight: 700;
 
-letter-spacing: .3px;
-
 cursor: pointer;
 
 box-shadow:
-0 10px 30px
-rgba(37, 99, 235, .25);
+0 10px 30px rgba(37, 99, 235, .25);
 
 transition:
-.2s ease;
-}
-
-.decrypt-btn span {
-margin-right: 5px;
+transform .2s ease,
+box-shadow .2s ease,
+opacity .2s ease;
 }
 
 .decrypt-btn:hover:not(:disabled) {
-transform:
-translateY(-2px);
+transform: translateY(-2px);
 
 box-shadow:
-0 15px 35px
-rgba(37, 99, 235, .35);
+0 15px 35px rgba(37, 99, 235, .35);
 }
 
 .decrypt-btn:active:not(:disabled) {
-transform:
-translateY(0);
+transform: translateY(0);
 }
 
 .decrypt-btn:disabled {
@@ -328,26 +313,25 @@ cursor: not-allowed;
 box-shadow: none;
 }
 
-/* ========================================
+/* ================================
 STATUS
-======================================== */
+================================ */
 
 .status {
 display: none;
 
 margin-top: 18px;
 
-padding:
-13px 15px;
+padding: 13px 15px;
 
-border:
-1px solid
-#1e293b;
+border: 1px solid #1e293b;
 
 border-radius: 10px;
 
 background:
-rgba(15, 23, 42, .85);
+rgba(15, 23, 42, .9);
+
+color: #cbd5e1;
 
 font-size: 13px;
 
@@ -356,9 +340,21 @@ line-height: 1.5;
 word-break: break-word;
 }
 
-/* ========================================
+.status.success {
+border-color: #166534;
+}
+
+.status.error {
+border-color: #991b1b;
+}
+
+.status.loading {
+border-color: #1d4ed8;
+}
+
+/* ================================
 RESULT
-======================================== */
+================================ */
 
 .result {
 margin-top: 28px;
@@ -380,9 +376,9 @@ font-size: 20px;
 font-weight: 800;
 }
 
-/* ========================================
+/* ================================
 FIELD
-======================================== */
+================================ */
 
 .field,
 .ssh-box {
@@ -390,23 +386,20 @@ overflow: hidden;
 
 margin-bottom: 12px;
 
-border:
-1px solid
-rgba(148, 163, 184, .12);
+border: 1px solid rgba(148, 163, 184, .12);
 
 border-radius: 14px;
 
 background:
-rgba(15, 23, 42, .88);
+rgba(15, 23, 42, .9);
 
 box-shadow:
-0 8px 25px
-rgba(0, 0, 0, .12);
+0 8px 25px rgba(0, 0, 0, .15);
 }
 
-/* ========================================
+/* ================================
 FIELD HEADER
-======================================== */
+================================ */
 
 .field-header,
 .ssh-header {
@@ -418,15 +411,13 @@ justify-content: space-between;
 
 gap: 10px;
 
-padding:
-11px 13px;
+padding: 11px 13px;
 
 background:
-rgba(30, 41, 59, .65);
+rgba(30, 41, 59, .7);
 
 border-bottom:
-1px solid
-rgba(148, 163, 184, .08);
+1px solid rgba(148, 163, 184, .08);
 }
 
 .field-title,
@@ -442,17 +433,16 @@ font-weight: 700;
 word-break: break-word;
 }
 
-/* ========================================
+/* ================================
 COPY BUTTON
-======================================== */
+================================ */
 
 .copy-btn {
 flex-shrink: 0;
 
-padding:
-7px 12px;
+padding: 7px 12px;
 
-border: none;
+border: 0;
 
 border-radius: 7px;
 
@@ -468,7 +458,8 @@ font-weight: 700;
 cursor: pointer;
 
 transition:
-.2s ease;
+background .2s ease,
+color .2s ease;
 }
 
 .copy-btn:hover {
@@ -485,20 +476,17 @@ background:
 #166534;
 }
 
-/* ========================================
-VALUE
-======================================== */
+/* ================================
+FIELD VALUE
+================================ */
 
 .field-value,
 .ssh-value {
-padding:
-15px;
+padding: 15px;
 
 color: #cbd5e1;
 
 font-family:
-"JetBrains Mono",
-"Fira Code",
 "Courier New",
 monospace;
 
@@ -515,9 +503,14 @@ overflow-x: auto;
 max-height: 450px;
 }
 
-/* ========================================
+/* ================================
 SSH
-======================================== */
+================================ */
+
+.ssh-box {
+border-color:
+rgba(59, 130, 246, .3);
+}
 
 .ssh-value {
 color: #60a5fa;
@@ -525,16 +518,15 @@ color: #60a5fa;
 font-size: 14px;
 
 background:
-rgba(2, 6, 23, .35);
+rgba(2, 6, 23, .4);
 }
 
-/* ========================================
+/* ================================
 PROTECTION
-======================================== */
+================================ */
 
 .protection-title {
-margin:
-25px 0 12px;
+margin: 25px 0 12px;
 
 color: #f8fafc;
 
@@ -543,9 +535,9 @@ font-size: 16px;
 font-weight: 800;
 }
 
-/* ========================================
+/* ================================
 EMPTY
-======================================== */
+================================ */
 
 .empty {
 padding: 30px 15px;
@@ -562,9 +554,9 @@ rgba(15, 23, 42, .8);
 font-size: 13px;
 }
 
-/* ========================================
+/* ================================
 FOOTER
-======================================== */
+================================ */
 
 footer {
 margin-top: 35px;
@@ -579,15 +571,14 @@ letter-spacing: 1px;
 }
 
 footer span {
-margin:
-0 5px;
+margin: 0 5px;
 
 color: #334155;
 }
 
-/* ========================================
+/* ================================
 MOBILE
-======================================== */
+================================ */
 
 @media (max-width: 600px) {
 
@@ -611,10 +602,7 @@ font-size: 28px;
 }
 
 .header h1 {
-font-size: 25px;
-
-letter-spacing: .5px;
-
+font-size: 24px;
 }
 
 .header p {
@@ -631,7 +619,7 @@ padding:
 }
 
 .upload-icon {
-font-size: 38px;
+font-size: 40px;
 }
 
 .upload-box h2 {
@@ -675,14 +663,14 @@ padding: 14px;
 }
 }
 
-/* ========================================
-VERY SMALL SCREEN
-======================================== */
+/* ================================
+SMALL PHONE
+================================ */
 
 @media (max-width: 360px) {
 
 .header h1 {
-font-size: 22px;
+font-size: 21px;
 }
 
 .upload-box {
