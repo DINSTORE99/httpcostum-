@@ -4,29 +4,35 @@
 
 const fileInput = document.getElementById("fileInput");
 const chooseBtn = document.getElementById("chooseBtn");
+
 const dropArea = document.getElementById("dropArea");
 
-const filePreview = document.getElementById("filePreview");
+const fileBox = document.getElementById("fileBox");
 const fileName = document.getElementById("fileName");
 const fileSize = document.getElementById("fileSize");
 
 const removeBtn = document.getElementById("removeBtn");
-const openBtn = document.getElementById("openBtn");
+const decryptBtn = document.getElementById("decryptBtn");
 
-const message = document.getElementById("message");
+const status = document.getElementById("status");
 
 const resultCard = document.getElementById("resultCard");
-const result = document.getElementById("result");
-const resultName = document.getElementById("resultName");
+const configResult = document.getElementById("configResult");
 
+const protections = document.getElementById("protections");
+const raw = document.getElementById("raw");
+
+const resultFormat = document.getElementById("resultFormat");
 const copyBtn = document.getElementById("copyBtn");
-const downloadBtn = document.getElementById("downloadBtn");
+
 
 //// =========================
 //// STATE
 //// =========================
 
 let selectedFile = null;
+let lastResult = null;
+
 
 //// =========================
 //// FORMAT SIZE
@@ -34,74 +40,68 @@ let selectedFile = null;
 
 function formatSize(bytes) {
 
-  if (bytes < 1024) {
+  if (bytes < 1024)
     return bytes + " B";
-  }
 
-  if (bytes < 1024 * 1024) {
+  if (bytes < 1024 * 1024)
     return (bytes / 1024).toFixed(2) + " KB";
-  }
 
   return (bytes / 1024 / 1024).toFixed(2) + " MB";
 }
 
+
 //// =========================
-//// PILIH FILE
+//// SELECT FILE
 //// =========================
 
-chooseBtn.addEventListener("click", () => {
+chooseBtn.onclick = () => {
   fileInput.click();
-});
+};
 
-dropArea.addEventListener("click", (e) => {
 
-  if (
-    e.target !== chooseBtn
-  ) {
-    fileInput.click();
-  }
+fileInput.onchange = () => {
 
-});
+  if (!fileInput.files.length)
+    return;
 
-fileInput.addEventListener("change", () => {
+  setFile(fileInput.files[0]);
 
-  if (fileInput.files.length) {
-    setFile(fileInput.files[0]);
-  }
+};
 
-});
 
 //// =========================
 //// DRAG DROP
 //// =========================
 
-dropArea.addEventListener("dragover", (e) => {
+dropArea.ondragover = e => {
 
   e.preventDefault();
 
-  dropArea.classList.add("dragging");
+  dropArea.classList.add("drag");
 
-});
+};
 
-dropArea.addEventListener("dragleave", () => {
 
-  dropArea.classList.remove("dragging");
+dropArea.ondragleave = () => {
 
-});
+  dropArea.classList.remove("drag");
 
-dropArea.addEventListener("drop", (e) => {
+};
+
+
+dropArea.ondrop = e => {
 
   e.preventDefault();
 
-  dropArea.classList.remove("dragging");
+  dropArea.classList.remove("drag");
 
   const file = e.dataTransfer.files[0];
 
-  if (file) {
+  if (file)
     setFile(file);
-  }
 
-});
+};
+
 
 //// =========================
 //// SET FILE
@@ -112,53 +112,60 @@ function setFile(file) {
   selectedFile = file;
 
   fileName.textContent = file.name;
-  fileSize.textContent = formatSize(file.size);
 
-  filePreview.style.display = "flex";
+  fileSize.textContent =
+    formatSize(file.size);
 
-  openBtn.disabled = false;
+  fileBox.style.display = "flex";
 
-  message.textContent = "";
+  decryptBtn.disabled = false;
+
+  status.textContent = "";
 
   resultCard.style.display = "none";
 
 }
 
+
 //// =========================
 //// REMOVE
 //// =========================
 
-removeBtn.addEventListener("click", () => {
+removeBtn.onclick = () => {
 
   selectedFile = null;
 
   fileInput.value = "";
 
-  filePreview.style.display = "none";
+  fileBox.style.display = "none";
 
-  openBtn.disabled = true;
+  decryptBtn.disabled = true;
 
   resultCard.style.display = "none";
 
-  message.textContent = "";
+  status.textContent = "";
 
-});
+};
+
 
 //// =========================
-//// BUKA FILE
+//// DECRYPT
 //// =========================
 
-openBtn.addEventListener("click", async () => {
+decryptBtn.onclick = async () => {
 
-  if (!selectedFile) {
+  if (!selectedFile)
     return;
-  }
 
-  openBtn.disabled = true;
 
-  openBtn.textContent = "⏳ Membuka...";
+  decryptBtn.disabled = true;
 
-  message.textContent = "Sedang memproses file...";
+  decryptBtn.textContent =
+    "⏳ Memproses...";
+
+  status.textContent =
+    "Sedang decrypt file...";
+
 
   try {
 
@@ -169,111 +176,188 @@ openBtn.addEventListener("click", async () => {
       selectedFile
     );
 
+
     const response = await fetch(
-      "/api/open",
+      "/api/decrypt",
       {
         method: "POST",
         body: formData
       }
     );
 
+
     const data = await response.json();
 
-    if (!data.status) {
+
+    if (!data.success) {
+
       throw new Error(
-        data.message || "Gagal membuka file"
+        data.error ||
+        "Decrypt gagal"
       );
+
     }
 
-    resultCard.style.display = "block";
 
-    resultName.textContent =
-      data.filename;
+    lastResult = data;
 
-    result.textContent =
-      data.result || "(File kosong)";
 
-    message.textContent =
-      "✅ File berhasil dibuka";
+    showResult(data);
 
-    resultCard.scrollIntoView({
-      behavior: "smooth"
-    });
+
+    status.textContent =
+      "✅ File berhasil didecrypt";
+
 
   } catch (error) {
 
-    message.textContent =
+    status.textContent =
       "❌ " + error.message;
-
-  } finally {
-
-    openBtn.disabled = false;
-
-    openBtn.textContent =
-      "🔓 Buka File";
 
   }
 
-});
+
+  decryptBtn.disabled = false;
+
+  decryptBtn.textContent =
+    "🔓 Buka File";
+
+};
+
+
+//// =========================
+//// SHOW RESULT
+//// =========================
+
+function showResult(data) {
+
+  resultCard.style.display = "block";
+
+
+  resultFormat.textContent =
+    "Format: " +
+    (data.format || "HC");
+
+
+  //// CONFIG
+
+  configResult.innerHTML = "";
+
+
+  if (
+    data.config &&
+    typeof data.config === "object"
+  ) {
+
+    Object.entries(data.config)
+      .forEach(([key, value]) => {
+
+        const item =
+          document.createElement("div");
+
+        item.className =
+          "config-item";
+
+
+        const title =
+          document.createElement("div");
+
+        title.className =
+          "config-key";
+
+        title.textContent =
+          key;
+
+
+        const valueBox =
+          document.createElement("pre");
+
+        valueBox.className =
+          "config-value";
+
+        valueBox.textContent =
+          typeof value === "object"
+            ? JSON.stringify(
+                value,
+                null,
+                2
+              )
+            : String(value);
+
+
+        item.appendChild(title);
+
+        item.appendChild(valueBox);
+
+        configResult.appendChild(item);
+
+      });
+
+  }
+
+
+  //// PROTECTIONS
+
+  protections.textContent =
+    JSON.stringify(
+      data.protections || {},
+      null,
+      2
+    );
+
+
+  //// RAW
+
+  raw.textContent =
+    data.raw || "";
+
+
+  resultCard.scrollIntoView({
+    behavior: "smooth"
+  });
+
+}
+
 
 //// =========================
 //// COPY
 //// =========================
 
-copyBtn.addEventListener("click", async () => {
+copyBtn.onclick = async () => {
 
-  try {
+  if (!lastResult)
+    return;
 
-    await navigator.clipboard.writeText(
-      result.textContent
-    );
 
-    copyBtn.textContent =
-      "✅ Tersalin";
+  let text = "";
 
-    setTimeout(() => {
 
-      copyBtn.textContent =
-        "📋 Salin";
+  if (lastResult.config) {
 
-    }, 1500);
-
-  } catch (error) {
-
-    alert("Gagal menyalin");
+    text =
+      JSON.stringify(
+        lastResult.config,
+        null,
+        2
+      );
 
   }
 
-});
 
-//// =========================
-//// DOWNLOAD
-//// =========================
-
-downloadBtn.addEventListener("click", () => {
-
-  const blob = new Blob(
-    [result.textContent],
-    {
-      type: "text/plain"
-    }
+  await navigator.clipboard.writeText(
+    text
   );
 
-  const url =
-    URL.createObjectURL(blob);
 
-  const a =
-    document.createElement("a");
+  copyBtn.textContent =
+    "✅ Tersalin";
 
-  a.href = url;
 
-  a.download =
-    selectedFile
-      ? selectedFile.name + ".txt"
-      : "hasil.txt";
+  setTimeout(() => {
 
-  a.click();
+    copyBtn.textContent =
+      "📋 Salin";
 
-  URL.revokeObjectURL(url);
+  }, 1500);
 
-});
+};
