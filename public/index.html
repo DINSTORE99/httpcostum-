@@ -11,129 +11,70 @@
 
 <body>
 
-<div class="container">
+  <div class="container">
 
-  <div class="header">
-    <div class="logo">DINSTORE</div>
-    <h1>Config Decryptor</h1>
-    <p>Buka dan decrypt file HTTP Custom</p>
-  </div>
+    <h1>DINSTORE DECRYPTOR</h1>
+    <p class="subtitle">Decrypt file HC & EHI</p>
 
-  <!-- UPLOAD -->
-
-  <div class="card">
-
-    <div id="dropArea" class="drop-area">
-
-      <div class="icon">📁</div>
-
-      <h3>Upload File</h3>
-
-      <p>
-        Pilih file <b>.HC</b>
-      </p>
+    <div id="dropZone" class="drop-zone">
 
       <input
         type="file"
         id="fileInput"
-        accept=".hc"
+        accept=".hc,.ehi"
         hidden
       >
 
-      <button id="chooseBtn">
+      <div class="upload-icon">📁</div>
+
+      <h2>Pilih File</h2>
+
+      <p id="fileText">
+        Klik tombol di bawah untuk memilih file
+      </p>
+
+      <button
+        type="button"
+        id="selectBtn"
+        class="btn"
+      >
         Pilih File
       </button>
 
     </div>
 
-    <!-- FILE -->
-
-    <div
-      id="fileBox"
-      class="file-box"
-      style="display:none"
-    >
-
-      <div>
-        <div id="fileName"></div>
-        <small id="fileSize"></small>
-      </div>
-
-      <button id="removeBtn">
-        ✕
-      </button>
-
-    </div>
-
-    <!-- DECRYPT -->
-
     <button
+      type="button"
       id="decryptBtn"
-      class="decrypt-btn"
+      class="btn decrypt-btn"
       disabled
     >
-      🔓 Buka File
+      🔓 Decrypt
     </button>
 
-    <div id="status"></div>
+    <div id="status" class="status"></div>
 
-  </div>
+    <div id="resultBox" class="result-box" hidden>
 
+      <div class="result-header">
+        <span>Hasil Decrypt</span>
 
-  <!-- RESULT -->
-
-  <div
-    id="resultCard"
-    class="card result-card"
-    style="display:none"
-  >
-
-    <div class="result-title">
-
-      <div>
-        <h2>✅ Hasil Decrypt</h2>
-
-        <small id="resultFormat"></small>
+        <button
+          type="button"
+          id="copyBtn"
+          class="copy-btn"
+        >
+          Copy
+        </button>
       </div>
 
-      <button id="copyBtn">
-        📋 Salin
-      </button>
-
-    </div>
-
-
-    <!-- CONFIG -->
-
-    <div id="configResult"></div>
-
-
-    <!-- PROTECTION -->
-
-    <div id="protectionSection">
-
-      <h3>🛡️ Protections</h3>
-
-      <pre id="protections"></pre>
-
-    </div>
-
-
-    <!-- RAW -->
-
-    <div>
-
-      <h3>📄 Raw Config</h3>
-
-      <pre id="raw"></pre>
+      <pre id="result"></pre>
 
     </div>
 
   </div>
 
-</div>
-
-<script src="/app.js"></script>
+  <script src="/app.js"></script>
 
 </body>
 </html>
