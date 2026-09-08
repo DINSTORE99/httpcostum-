@@ -51,7 +51,7 @@ SET FILE
 
 function setFile(file) {
 
-if (!file.name.toLowerCase().endsWith(".hc")) {
+if (!/\.(hc|ehi)$/i.test(file.name)) {
 
 selectedFile = null;
 
@@ -62,7 +62,7 @@ fileName.textContent = "";
 fileName.style.display = "none";
 
 showStatus(
-  "❌ Hanya file .HC yang diperbolehkan",
+  "❌ Hanya file .HC atau .EHI yang diperbolehkan",
   "error"
 );
 
