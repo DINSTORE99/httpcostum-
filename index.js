@@ -3,7 +3,6 @@ const multer = require("multer");
 const path = require("path");
 
 const hcDecrypt = require("./decryptors/hc");
-const ehiDecrypt = require("./decryptors/ehi");
 
 const upload = multer({
   storage: multer.memoryStorage()
@@ -30,11 +29,8 @@ app.post(
   "/api/decrypt",
   upload.single("file"),
   async (req, res) => {
-    try {
 
-      // --------------------------------------
-      // CEK FILE
-      // --------------------------------------
+    try {
 
       if (!req.file) {
         return res.status(400).json({
@@ -44,77 +40,113 @@ app.post(
       }
 
       const filename =
-        req.file.originalname.toLowerCase();
+        String(req.file.originalname || "")
+          .toLowerCase();
 
-      let result;
-
-      // --------------------------------------
+      // ====================================
       // HC
-      // --------------------------------------
+      // ====================================
 
       if (filename.endsWith(".hc")) {
 
-        result =
+        const result =
           await hcDecrypt(req.file.buffer);
 
+        if (!result || !result.success) {
+          return res.status(400).json(
+            result || {
+              success: false,
+              error: "Gagal decrypt file HC"
+            }
+          );
+        }
+
+        return res.json(result);
       }
 
-      // --------------------------------------
+      // ====================================
       // EHI
-      // --------------------------------------
+      // ====================================
 
-      else if (filename.endsWith(".ehi")) {
+      if (filename.endsWith(".ehi")) {
 
-        result =
-          await ehiDecrypt(req.file.buffer);
+        let ehiDecrypt;
 
-      }
+        try {
 
-      // --------------------------------------
-      // FORMAT TIDAK DIDUKUNG
-      // --------------------------------------
+          ehiDecrypt =
+            require("./decryptors/ehi");
 
-      else {
+        } catch (err) {
 
-        return res.status(400).json({
-          success: false,
-          error:
-            "Format tidak didukung. Upload file .hc atau .ehi"
-        });
+          console.error(
+            "EHI MODULE ERROR:",
+            err
+          );
 
-      }
-
-      // --------------------------------------
-      // HASIL DECRYPT
-      // --------------------------------------
-
-      if (!result || !result.success) {
-
-        return res.status(400).json(
-          result || {
+          return res.status(500).json({
             success: false,
-            error: "Gagal decrypt file"
-          }
-        );
+            error:
+              "Decryptor EHI gagal dimuat: " +
+              err.message
+          });
+        }
 
+        try {
+
+          const result =
+            await ehiDecrypt(req.file.buffer);
+
+          if (!result || !result.success) {
+            return res.status(400).json(
+              result || {
+                success: false,
+                error: "Gagal decrypt file EHI"
+              }
+            );
+          }
+
+          return res.json(result);
+
+        } catch (err) {
+
+          console.error(
+            "EHI DECRYPT ERROR:",
+            err
+          );
+
+          return res.status(400).json({
+            success: false,
+            error:
+              err.message ||
+              "Gagal decrypt file EHI"
+          });
+        }
       }
 
-      return res.json(result);
+      // ====================================
+      // FORMAT LAIN
+      // ====================================
 
-    } catch (e) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Format tidak didukung. Upload file .hc atau .ehi"
+      });
+
+    } catch (err) {
 
       console.error(
-        "DECRYPT ERROR:",
-        e
+        "API ERROR:",
+        err
       );
 
       return res.status(500).json({
         success: false,
         error:
-          e.message ||
+          err.message ||
           "Internal server error"
       });
-
     }
   }
 );
@@ -137,13 +169,13 @@ app.get("/api", (req, res) => {
 });
 
 // ==========================================
-// EXPORT
+// EXPORT VERCEL
 // ==========================================
 
 module.exports = app;
 
 // ==========================================
-// RUN LANGSUNG
+// LOCAL
 // ==========================================
 
 if (require.main === module) {
@@ -152,11 +184,9 @@ if (require.main === module) {
     process.env.PORT || 3000;
 
   app.listen(PORT, () => {
-
     console.log(
       `DINSTORE HC / EHI Decryptor running on port ${PORT}`
     );
-
   });
 
 }
