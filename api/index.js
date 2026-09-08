@@ -3,7 +3,7 @@ const multer = require("multer");
 const path = require("path");
 const hcDecrypt = require("../decryptors/hc");
 const ehiDecrypt = require("../decryptors/ehi");
-
+require("../decryptors/ehi")
 const app = express();
 
 const upload = multer({
