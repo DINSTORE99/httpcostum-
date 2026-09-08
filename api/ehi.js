@@ -1,152 +1,59 @@
-const crypto = require("crypto")
-function json(res, status, data) {
-  res.status(status)
-  res.setHeader("Content-Type", "application/json")
-  res.setHeader("Access-Control-Allow-Origin", "*")
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,POST,OPTIONS"
-  )
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type"
-  )
+const EHI = {
+  // AES-256 Layer 1
+  L1_KEY: Buffer.from(
+    "7e1210f7aab956f7a668bda6e57feddb7f84ad840aef8d27b1b969959be3ab6c",
+    "hex"
+  ),
 
-  return res.end(JSON.stringify(data))
-}
+  // AES-128 Layer 2
+  L2_KEY_STATIC: Buffer.from(
+    "b2bc617c32d8b9eb1943a5ffa8051eea",
+    "hex"
+  ),
 
-module.exports = async (req, res) => {
-  try {
+  // XXTEA master key
+  EOO_MASTER_KEY: Buffer.from(
+    "null=V5kU5+FFrY\u0000",
+    "utf8"
+  ),
 
-    // =========================
-    // CORS
-    // =========================
-    res.setHeader(
-      "Access-Control-Allow-Origin",
-      "*"
+  // BYPASS
+  BYPASS_IVS: [
+    Buffer.from(
+      "221d572349555f1d112133236b1f4a3f",
+      "hex"
+    ),
+    Buffer.from(
+      "5543494c53443e3f4a6a4539384e776a",
+      "hex"
+    ),
+    Buffer.from(
+      "374c2541575e4d531a3c327b75431e5f",
+      "hex"
     )
+  ],
 
-    res.setHeader(
-      "Access-Control-Allow-Methods",
-      "GET,POST,OPTIONS"
+  // STANDARD
+  STANDARD_IVS: [
+    Buffer.from(
+      "2c5d1147bbad422b3b334d4d235f1a53",
+      "hex"
+    ),
+    Buffer.from(
+      "522b01433a5e8b2fc7549e1ad368e541",
+      "hex"
+    ),
+    Buffer.from(
+      "337a1035aaedf3458ca167e92d74b839",
+      "hex"
     )
+  ],
 
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type"
-    )
+  // Custom Base64 alphabet
+  CUSTOM_ALPHABET:
+    "RkLC2QaVMPYgGJW/A4f7qzDb9e+t6Hr0Zp8OlNyjuxKcTw1o5EIimhBn3UvdSFXs",
 
-    // =========================
-    // OPTIONS
-    // =========================
-    if (req.method === "OPTIONS") {
-      return res.status(200).end()
-    }
-
-    // =========================
-    // GET
-    // =========================
-    if (req.method === "GET") {
-      return json(res, 200, {
-        success: true,
-        status: "online",
-        name: "EHI Decrypt API",
-        version: "1.0.0",
-        endpoint: "/api/ehi",
-        methods: [
-          "GET",
-          "POST"
-        ]
-      })
-    }
-
-    // =========================
-    // POST
-    // =========================
-    if (req.method !== "POST") {
-      return json(res, 405, {
-        success: false,
-        error: "Method Not Allowed"
-      })
-    }
-
-    // =========================
-    // BODY
-    // =========================
-    let body = req.body
-
-    if (!body) {
-      return json(res, 400, {
-        success: false,
-        error: "Request body kosong"
-      })
-    }
-
-    if (Buffer.isBuffer(body)) {
-      // OK
-    } else if (body instanceof Uint8Array) {
-      body = Buffer.from(body)
-    } else {
-      return json(res, 400, {
-        success: false,
-        error: "Kirim file EHI sebagai application/octet-stream"
-      })
-    }
-
-    // =========================
-    // FILE SIZE
-    // =========================
-    if (body.length === 0) {
-      return json(res, 400, {
-        success: false,
-        error: "File kosong"
-      })
-    }
-
-    if (body.length > 4 * 1024 * 1024) {
-      return json(res, 413, {
-        success: false,
-        error: "File terlalu besar"
-      })
-    }
-
-    // =========================
-    // HASH
-    // =========================
-    const sha256 = crypto
-      .createHash("sha256")
-      .update(body)
-      .digest("hex")
-
-    // =========================
-    // RESPONSE
-    // =========================
-    return json(res, 200, {
-      success: true,
-
-      status: "received",
-
-      file: {
-        size: body.length,
-        sha256
-      },
-
-      message:
-        "File EHI berhasil diterima oleh API."
-    })
-
-  } catch (error) {
-
-    console.error(
-      "EHI API ERROR:",
-      error
-    )
-
-    return json(res, 500, {
-      success: false,
-      error:
-        error?.message ||
-        "Internal Server Error"
-    })
-  }
+  // Standard Base64
+  STANDARD_ALPHABET:
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 }
