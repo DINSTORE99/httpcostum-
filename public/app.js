@@ -93,7 +93,7 @@ decryptBtn.addEventListener("click", async () => {
 
 if (!selectedFile) {
 showStatus(
-"❌ Pilih file HC terlebih dahulu",
+"❌ Pilih file HC atau EHI terlebih dahulu",
 "error"
 );
 
