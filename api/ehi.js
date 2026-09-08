@@ -1,158 +1,102 @@
+"use strict"
+
 const crypto = require("crypto")
 const { argon2id } = require("hash-wasm")
-const sodiumModule = require("libsodium-wrappers")
+const sodium = require("libsodium-wrappers")
 
 // ============================================================
-// EHI CONSTANTS
+// HTTP INJECTOR EHI DECRYPTOR
 // ============================================================
 
-const EHI = {
+// -------------------------
+// STATIC KEYS
+// -------------------------
 
-  // AES-256 Layer 1
-  L1_KEY: Buffer.from(
-    "7e1210f7aab956f7a668bda6e57feddb7f84ad840aef8d27b1b969959be3ab6c",
-    "hex"
-  ),
+const L1_KEY = Buffer.from(
+  "7e1210f7aab956f7a668bda6e57feddb7f84ad840aef8d27b1b969959be3ab6c",
+  "hex"
+)
 
-  // AES-128 Layer 2
-  L2_KEY_STATIC: Buffer.from(
-    "b2bc617c32d8b9eb1943a5ffa8051eea",
-    "hex"
-  ),
+const L2_KEY_STATIC = Buffer.from(
+  "b2bc617c32d8b9eb1943a5ffa8051eea",
+  "hex"
+)
 
-  // XXTEA
-  EOO_MASTER_KEY: Buffer.from(
-    "null=V5kU5+FFrY\u0000",
-    "utf8"
-  ),
+const EOO_MASTER_KEY = Buffer.from(
+  "null=V5kU5+FFrY\x00",
+  "utf8"
+)
 
-  // ----------------------------------------------------------
-  // BYPASS IV
-  // ----------------------------------------------------------
+// -------------------------
+// IV LIST
+// -------------------------
 
-  BYPASS_IVS: [
-    Buffer.from(
-      "221d572349555f1d112133236b1f4a3f",
-      "hex"
-    ),
+const BYPASS_IVS = [
+  Buffer.from("221d572349555f1d112133236b1f4a3f", "hex"),
+  Buffer.from("5543494c53443e3f4a6a4539384e776a", "hex"),
+  Buffer.from("374c2541575e4d531a3c327b75431e5f", "hex")
+]
 
-    Buffer.from(
-      "5543494c53443e3f4a6a4539384e776a",
-      "hex"
-    ),
+const STANDARD_IVS = [
+  Buffer.from("2c5d1147bbad422b3b334d4d235f1a53", "hex"),
+  Buffer.from("522b01433a5e8b2fc7549e1ad368e541", "hex"),
+  Buffer.from("337a1035aaedf3458ca167e92d74b839", "hex")
+]
 
-    Buffer.from(
-      "374c2541575e4d531a3c327b75431e5f",
-      "hex"
-    )
-  ],
+const ALL_IVS = [
+  ...BYPASS_IVS.map(iv => ({
+    iv,
+    mode: "bypass"
+  })),
+  ...STANDARD_IVS.map(iv => ({
+    iv,
+    mode: "standard"
+  }))
+]
 
-  // ----------------------------------------------------------
-  // STANDARD IV
-  // ----------------------------------------------------------
+// -------------------------
+// BASE64 ALPHABET
+// -------------------------
 
-  STANDARD_IVS: [
-    Buffer.from(
-      "2c5d1147bbad422b3b334d4d235f1a53",
-      "hex"
-    ),
+const STD_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-    Buffer.from(
-      "522b01433a5e8b2fc7549e1ad368e541",
-      "hex"
-    ),
+const CUSTOM_ALPHABET =
+  "RkLC2QaVMPYgGJW/A4f7qzDb9e+t6Hr0Zp8OlNyjuxKcTw1o5EIimhBn3UvdSFXs"
 
-    Buffer.from(
-      "337a1035aaedf3458ca167e92d74b839",
-      "hex"
-    )
-  ],
 
-  // ----------------------------------------------------------
-  // BASE64
-  // ----------------------------------------------------------
+// ============================================================
+// UTIL
+// ============================================================
 
-  STD_ALPHABET:
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
-
-  CUSTOM_ALPHABET:
-    "RkLC2QaVMPYgGJW/A4f7qzDb9e+t6Hr0Zp8OlNyjuxKcTw1o5EIimhBn3UvdSFXs",
-
-  // ----------------------------------------------------------
-  // MASTER FIELD
-  // ----------------------------------------------------------
-
-  MASTER_FIELDS: [
-    "configAesKey",
-    "configIdentifier",
-    "configSalt",
-    "configTimestamp",
-    "configExpiryTimestamp",
-    "lockModes",
-    "lockModesHash",
-    "configHwid",
-    "configLockMobileOperatorId"
-  ]
+function safeJson(value) {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
 }
 
+function isPrintable(text) {
+  if (!text) return false
 
-// ============================================================
-// HELPERS
-// ============================================================
+  let good = 0
 
-function safeJson(res, status, data) {
+  for (const ch of text) {
+    const n = ch.charCodeAt(0)
 
-  res.status(status)
-
-  res.setHeader(
-    "Content-Type",
-    "application/json; charset=utf-8"
-  )
-
-  res.setHeader(
-    "Access-Control-Allow-Origin",
-    "*"
-  )
-
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,POST,OPTIONS"
-  )
-
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type"
-  )
-
-  return res.end(
-    JSON.stringify(data)
-  )
-}
-
-
-// ============================================================
-// BUFFER NORMALIZER
-// ============================================================
-
-function getBufferBody(req) {
-
-  const body = req.body
-
-  if (!body) {
-    throw new Error("Request body kosong")
+    if (
+      n === 9 ||
+      n === 10 ||
+      n === 13 ||
+      (n >= 32 && n <= 126) ||
+      n >= 128
+    ) {
+      good++
+    }
   }
 
-  if (Buffer.isBuffer(body)) {
-    return body
-  }
-
-  if (body instanceof Uint8Array) {
-    return Buffer.from(body)
-  }
-
-  throw new Error(
-    "Kirim file EHI dengan Content-Type: application/octet-stream"
-  )
+  return good / text.length > 0.65
 }
 
 
@@ -160,50 +104,68 @@ function getBufferBody(req) {
 // CUSTOM BASE64
 // ============================================================
 
-function customBase64Decode(value) {
-
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    throw new Error("Base64 kosong")
+function customBase64Decode(input) {
+  if (typeof input !== "string") {
+    throw new Error("custom base64 input bukan string")
   }
 
-  let input =
-    String(value)
-      .replace(/\?/g, "")
-      .trim()
+  let value = input
+    .replace(/\?/g, "")
+    .replace(/\s+/g, "")
 
-  const custom =
-    EHI.CUSTOM_ALPHABET
+  while (value.length % 4 !== 0) {
+    value += "="
+  }
 
-  const standard =
-    EHI.STD_ALPHABET
+  let standard = ""
 
-  let translated = ""
+  for (const ch of value) {
+    if (ch === "=") {
+      standard += "="
+      continue
+    }
 
-  for (const char of input) {
+    const pos = CUSTOM_ALPHABET.indexOf(ch)
 
-    const index =
-      custom.indexOf(char)
+    if (pos === -1) {
+      throw new Error(
+        `custom base64 karakter tidak dikenal: ${ch}`
+      )
+    }
 
-    if (index >= 0) {
-      translated += standard[index]
-    } else {
-      translated += char
+    standard += STD_ALPHABET[pos]
+  }
+
+  return Buffer.from(standard, "base64")
+}
+
+
+// ============================================================
+// PKCS7 UNPAD
+// ============================================================
+
+function pkcs7Unpad(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new Error("buffer kosong")
+  }
+
+  const pad = buffer[buffer.length - 1]
+
+  if (pad < 1 || pad > 16) {
+    throw new Error("PKCS7 padding invalid")
+  }
+
+  if (pad > buffer.length) {
+    throw new Error("PKCS7 padding terlalu besar")
+  }
+
+  for (let i = buffer.length - pad; i < buffer.length; i++) {
+    if (buffer[i] !== pad) {
+      throw new Error("PKCS7 padding invalid")
     }
   }
 
-  while (
-    translated.length % 4 !== 0
-  ) {
-    translated += "="
-  }
-
-  return Buffer.from(
-    translated,
-    "base64"
-  )
+  return buffer.subarray(0, buffer.length - pad)
 }
 
 
@@ -211,53 +173,42 @@ function customBase64Decode(value) {
 // AES CBC
 // ============================================================
 
-function aesCbcDecrypt(
-  ciphertext,
-  key,
-  iv
-) {
-
-  if (
-    !Buffer.isBuffer(ciphertext) ||
-    ciphertext.length === 0
-  ) {
-    throw new Error("AES ciphertext kosong")
-  }
-
-  if (
-    ciphertext.length % 16 !== 0
-  ) {
-    throw new Error(
-      "AES ciphertext bukan kelipatan 16"
-    )
-  }
-
-  const algorithm =
-    key.length === 32
-      ? "aes-256-cbc"
-      : key.length === 16
-        ? "aes-128-cbc"
-        : null
-
-  if (!algorithm) {
-    throw new Error(
-      "Ukuran AES key tidak valid"
-    )
-  }
-
-  const decipher =
-    crypto.createDecipheriv(
-      algorithm,
+function aesCbcDecrypt(data, key, iv) {
+  if (key.length === 32) {
+    const decipher = crypto.createDecipheriv(
+      "aes-256-cbc",
       key,
       iv
     )
 
-  decipher.setAutoPadding(true)
+    decipher.setAutoPadding(false)
 
-  return Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final()
-  ])
+    return pkcs7Unpad(
+      Buffer.concat([
+        decipher.update(data),
+        decipher.final()
+      ])
+    )
+  }
+
+  if (key.length === 16) {
+    const decipher = crypto.createDecipheriv(
+      "aes-128-cbc",
+      key,
+      iv
+    )
+
+    decipher.setAutoPadding(false)
+
+    return pkcs7Unpad(
+      Buffer.concat([
+        decipher.update(data),
+        decipher.final()
+      ])
+    )
+  }
+
+  throw new Error("AES key length invalid")
 }
 
 
@@ -265,117 +216,59 @@ function aesCbcDecrypt(
 // XOR LAYER
 // ============================================================
 
-function decryptXorLayer(
-  ciphertext,
-  key
-) {
-
-  if (
-    ciphertext === null ||
-    ciphertext === undefined
-  ) {
-    return null
+function decryptXorLayer(value, key) {
+  if (typeof value !== "string") {
+    throw new Error("XOR layer bukan string")
   }
 
-  if (
-    !String(ciphertext).trim()
-  ) {
-    return ciphertext
+  let reversed = value
+    .split("")
+    .reverse()
+    .join("")
+
+  const decoded = customBase64Decode(reversed)
+
+  let hex = decoded.toString("ascii").trim()
+
+  if (hex.length % 2 !== 0) {
+    hex = "0" + hex
   }
 
-  try {
-
-    const reversed =
-      String(ciphertext)
-        .split("")
-        .reverse()
-        .join("")
-
-    const rawHexText =
-      customBase64Decode(reversed)
-        .toString("ascii")
-
-    let hex =
-      rawHexText.trim()
-
-    if (
-      hex.length % 2 !== 0
-    ) {
-      hex = "0" + hex
-    }
-
-    if (
-      !/^[0-9a-fA-F]+$/.test(hex)
-    ) {
-      return null
-    }
-
-    const raw =
-      Buffer.from(hex, "hex")
-
-    const keyString =
-      String(key)
-
-    if (!keyString.length) {
-      return null
-    }
-
-    const output = []
-
-    for (
-      let i = 0;
-      i < raw.length;
-      i++
-    ) {
-
-      const value =
-        raw[i] ^
-        keyString.charCodeAt(
-          i % keyString.length
-        )
-
-      // Source format removes zero bytes
-      if (value !== 0) {
-        output.push(value)
-      }
-    }
-
-    const plaintext =
-      Buffer.from(output)
-        .toString("utf8")
-
-    // Reject obviously binary garbage
-    if (plaintext.length) {
-
-      let bad = 0
-
-      for (const char of plaintext) {
-
-        const code =
-          char.charCodeAt(0)
-
-        if (
-          code < 32 &&
-          code !== 9 &&
-          code !== 10 &&
-          code !== 13
-        ) {
-          bad++
-        }
-      }
-
-      if (
-        bad / plaintext.length > 0.5
-      ) {
-        return null
-      }
-    }
-
-    return plaintext
-
-  } catch {
-    return null
+  if (!/^[0-9a-fA-F]+$/.test(hex)) {
+    throw new Error("XOR layer bukan hex")
   }
+
+  const encrypted = Buffer.from(hex, "hex")
+
+  const keyBuf = Buffer.from(
+    String(key),
+    "utf8"
+  )
+
+  if (!keyBuf.length) {
+    throw new Error("XOR key kosong")
+  }
+
+  const output = []
+
+  for (let i = 0; i < encrypted.length; i++) {
+    const x =
+      encrypted[i] ^
+      keyBuf[i % keyBuf.length]
+
+    if (x !== 0) {
+      output.push(x)
+    }
+  }
+
+  const result = Buffer.from(output)
+    .toString("utf8")
+
+  if (!isPrintable(result)) {
+    throw new Error("hasil XOR tidak valid")
+  }
+
+  return result
 }
 
 
@@ -383,90 +276,55 @@ function decryptXorLayer(
 // CONFIG MESSAGE
 // ============================================================
 
-function decodeConfigMessage(
-  value
-) {
+function decodeConfigMessage(value) {
+  const raw = Buffer.from(
+    String(value),
+    "base64"
+  )
 
-  if (
-    !value ||
-    !String(value).trim()
-  ) {
-    return value
+  const text = raw.toString("utf8")
+
+  // Python implementation:
+  //
+  // text.encode("utf-16-be")
+  //
+  // lalu XOR setiap Java char dengan EHIMSG
+
+  const utf16 = Buffer.from(text, "utf16le")
+
+  const key = Buffer.from(
+    "EHIMSG",
+    "utf16le"
+  )
+
+  const chars = []
+
+  for (let i = 0; i + 1 < utf16.length; i += 2) {
+    const value16 =
+      utf16.readUInt16LE(i)
+
+    const key16 =
+      key.readUInt16LE(
+        (i % key.length)
+      )
+
+    chars.push(
+      value16 ^ key16
+    )
   }
 
-  try {
+  const output = Buffer.alloc(
+    chars.length * 2
+  )
 
-    let input =
-      String(value)
-
-    while (
-      input.length % 4 !== 0
-    ) {
-      input += "="
-    }
-
-    const raw =
-      Buffer.from(
-        input,
-        "base64"
-      )
-
-    // EHI uses Java-char semantics.
-    const utf8Text =
-      raw.toString("utf8")
-
-    const utf16 =
-      Buffer.from(
-        utf8Text,
-        "utf16le"
-      )
-
-    const javaChars = []
-
-    for (
-      let i = 0;
-      i + 1 < utf16.length;
-      i += 2
-    ) {
-
-      javaChars.push(
-        utf16.readUInt16LE(i)
-      )
-    }
-
-    const key =
-      "EHIMSG"
-
-    const result =
-      Buffer.alloc(
-        javaChars.length * 2
-      )
-
-    for (
-      let i = 0;
-      i < javaChars.length;
-      i++
-    ) {
-
-      const value =
-        javaChars[i] ^
-        key.charCodeAt(
-          i % key.length
-        )
-
-      result.writeUInt16BE(
-        value & 0xffff,
-        i * 2
-      )
-    }
-
-    return result
-      .toString("utf16be")
-
-  } catch {
-
-    return value
+  for (let i = 0; i < chars.length; i++) {
+    output.writeUInt16LE(
+      chars[i],
+      i * 2
+    )
   }
+
+  return output.toString("utf16le")
 }
 
 
@@ -474,86 +332,57 @@ function decodeConfigMessage(
 // XXTEA
 // ============================================================
 
-function xxteaDecrypt(
-  input,
-  key
-) {
+function mx(z, y, sum, k, p, e) {
+  return (
+    (
+      (((z >>> 5) ^ (y << 2)) +
+        ((y >>> 3) ^ (z << 4))) ^
+      ((sum ^ y) + (k[(p & 3) ^ e] ^ z))
+    )
+  ) >>> 0
+}
 
-  if (
-    !input ||
-    !input.length
-  ) {
+function xxteaDecrypt(data, key) {
+  if (!Buffer.isBuffer(data)) {
+    data = Buffer.from(data)
+  }
+
+  if (!data.length) {
     return Buffer.alloc(0)
   }
 
-  let data =
-    Buffer.from(input)
+  const k = Buffer.alloc(16)
 
-  const remainder =
-    data.length % 4
+  Buffer.from(key)
+    .subarray(0, 16)
+    .copy(k)
 
-  if (remainder) {
-
-    data = Buffer.concat([
-      data,
-      Buffer.alloc(
-        4 - remainder
-      )
-    ])
-  }
-
-  const n =
-    data.length / 4
+  const n = Math.floor(data.length / 4)
 
   if (n < 2) {
     return data
   }
 
-  const k =
-    Buffer.concat([
-      key,
-      Buffer.alloc(
-        Math.max(
-          0,
-          16 - key.length
-        )
-      )
-    ]).subarray(0, 16)
+  const v = new Uint32Array(n)
 
-  const K = [
-    k.readUInt32LE(0),
-    k.readUInt32LE(4),
-    k.readUInt32LE(8),
-    k.readUInt32LE(12)
-  ]
-
-  const v = new Array(n)
-
-  for (
-    let i = 0;
-    i < n;
-    i++
-  ) {
-    v[i] =
-      data.readUInt32LE(
-        i * 4
-      )
+  for (let i = 0; i < n; i++) {
+    v[i] = data.readUInt32LE(i * 4)
   }
 
-  const delta =
-    0x9e3779b9
+  const DELTA = 0x9e3779b9
+
+  let z = v[n - 1]
+  let y = v[0]
+
+  let q =
+    Math.floor(
+      6 + 52 / n
+    )
 
   let sum =
-    Math.imul(
-      6 + Math.floor(52 / n),
-      delta
-    ) >>> 0
-
-  let y =
-    v[0]
+    Math.imul(q, DELTA) >>> 0
 
   while (sum !== 0) {
-
     const e =
       (sum >>> 2) & 3
 
@@ -562,344 +391,270 @@ function xxteaDecrypt(
       p > 0;
       p--
     ) {
+      y = v[p - 1]
 
-      const z =
-        v[p - 1]
-
-      const mx =
-        (
-          (
-            (
-              ((z >>> 5) ^
-                Math.imul(y, 4))
-            ) +
-            (
-              ((y >>> 3) ^
-                Math.imul(z, 16))
-            )
-          ) ^
-          (
-            (
-              (sum ^ y)
-            ) +
-            (
-              K[
-                (p & 3) ^ e
-              ] ^ z
-            )
-          )
-        ) >>> 0
+      const m = mx(
+        z,
+        y,
+        sum,
+        new Uint32Array([
+          k.readUInt32LE(0),
+          k.readUInt32LE(4),
+          k.readUInt32LE(8),
+          k.readUInt32LE(12)
+        ]),
+        p,
+        e
+      )
 
       v[p] =
-        (v[p] - mx) >>> 0
+        (v[p] - m) >>> 0
 
-      y =
-        v[p]
+      z = v[p]
     }
 
-    const z =
-      v[n - 1]
+    y = v[n - 1]
 
-    const mx =
-      (
-        (
-          (
-            (z >>> 5) ^
-            Math.imul(y, 4)
-          ) +
-          (
-            (y >>> 3) ^
-            Math.imul(z, 16)
-          )
-        ) ^
-        (
-          (
-            sum ^ y
-          ) +
-          (
-            K[e] ^ z
-          )
-        )
-      ) >>> 0
-
-    v[0] =
-      (v[0] - mx) >>> 0
-
-    y =
-      v[0]
-
-    sum =
-      (sum - delta) >>> 0
-  }
-
-  const output =
-    Buffer.alloc(
-      n * 4
+    const m = mx(
+      z,
+      y,
+      sum,
+      new Uint32Array([
+        k.readUInt32LE(0),
+        k.readUInt32LE(4),
+        k.readUInt32LE(8),
+        k.readUInt32LE(12)
+      ]),
+      0,
+      e
     )
 
-  for (
-    let i = 0;
-    i < n;
-    i++
-  ) {
+    v[0] =
+      (v[0] - m) >>> 0
 
+    z = v[0]
+
+    sum =
+      (sum - DELTA) >>> 0
+  }
+
+  const output = Buffer.alloc(
+    n * 4
+  )
+
+  for (let i = 0; i < n; i++) {
     output.writeUInt32LE(
       v[i] >>> 0,
       i * 4
     )
   }
 
-  const declaredLength =
-    v[n - 1] >>> 0
+  // XXTEA implementation stores the
+  // original byte length in the final word.
+
+  const byteLength =
+    output.readUInt32LE(
+      output.length - 4
+    )
 
   if (
-    declaredLength > 0 &&
-    declaredLength <= output.length
+    byteLength > 0 &&
+    byteLength <= output.length
   ) {
     return output.subarray(
       0,
-      declaredLength
+      byteLength
     )
   }
 
-  // fallback
-  let end =
-    output.length
-
-  while (
-    end > 0 &&
-    output[end - 1] === 0
-  ) {
-    end--
-  }
-
-  return output.subarray(
-    0,
-    end
-  )
+  return output
 }
 
 
 // ============================================================
-// EHI CONTAINER PARSER
+// EHI CONTAINER
 // ============================================================
 
-function parseEhiContainer(
-  file
-) {
-
+function parseEhiContainer(buffer) {
   let offset = 0
 
-  function readU16() {
-
-    if (
-      offset + 2 >
-      file.length
-    ) {
-      throw new Error(
-        "EHI header terpotong"
-      )
+  function readUtf() {
+    if (offset + 2 > buffer.length) {
+      throw new Error("EHI container truncated")
     }
 
-    const value =
-      file.readUInt16BE(
-        offset
-      )
+    const len =
+      buffer.readUInt16BE(offset)
 
     offset += 2
 
-    return value
-  }
-
-  function readU32() {
-
     if (
-      offset + 4 >
-      file.length
+      offset + len >
+      buffer.length
     ) {
       throw new Error(
-        "EHI payload length terpotong"
+        "EHI UTF length invalid"
       )
     }
 
     const value =
-      file.readUInt32BE(
-        offset
-      )
-
-    offset += 4
-
-    return value
-  }
-
-  function readUTF8() {
-
-    const length =
-      readU16()
-
-    if (
-      offset + length >
-      file.length
-    ) {
-      throw new Error(
-        "EHI UTF field terpotong"
-      )
-    }
-
-    const value =
-      file
-        .subarray(
-          offset,
-          offset + length
-        )
+      buffer
+        .subarray(offset, offset + len)
         .toString("utf8")
 
-    offset += length
+    offset += len
 
     return value
   }
 
-  const type =
-    readUTF8()
+  const type = readUtf()
 
-  // reserved
+  if (offset + 8 > buffer.length) {
+    throw new Error("EHI header invalid")
+  }
+
   offset += 8
 
-  const appVersion =
-    readUTF8()
+  const version = readUtf()
 
-  // reserved
+  if (offset + 8 > buffer.length) {
+    throw new Error("EHI header invalid")
+  }
+
   offset += 8
+
+  if (offset + 4 > buffer.length) {
+    throw new Error("EHI payload header invalid")
+  }
 
   const payloadLength =
-    readU32()
+    buffer.readUInt32BE(offset)
 
-  // reserved
+  offset += 4
+
+  if (offset + 8 > buffer.length) {
+    throw new Error("EHI payload header invalid")
+  }
+
   offset += 8
 
   if (
     offset + payloadLength >
-    file.length
+    buffer.length
   ) {
     throw new Error(
-      "EHI encrypted payload terpotong"
+      `EHI payload truncated: ${payloadLength}`
     )
   }
 
   const payload =
-    file.subarray(
+    buffer.subarray(
       offset,
       offset + payloadLength
     )
 
   return {
     type,
-    appVersion,
+    version,
     payload
   }
 }
 
 
 // ============================================================
-// GENERATE MASTER KEY
+// MASTER KEY
 // ============================================================
 
-function generateMasterKey(
-  config
-) {
+function generateMasterKey(config) {
+  const values = [
+    config.configAesKey,
+    config.configIdentifier,
+    config.configSalt,
+    config.configTimestamp,
+    config.configExpiryTimestamp,
+    Array.isArray(config.lockModes)
+      ? config.lockModes.join("")
+      : config.lockModes,
+    config.lockModesHash,
+    config.configHwid,
+    config.configLockMobileOperatorId
+  ]
 
-  let text = ""
-
-  for (
-    const field of EHI.MASTER_FIELDS
-  ) {
-
-    let value =
-      config[field]
-
-    if (
-      value === undefined ||
-      value === null ||
-      value === ""
-    ) {
-      continue
-    }
-
-    if (
-      typeof value === "object"
-    ) {
-      value =
-        String(value)
-    }
-
-    text += String(value)
-  }
+  const input = values
+    .filter(
+      value =>
+        value !== undefined &&
+        value !== null &&
+        String(value).length > 0
+    )
+    .map(value => String(value))
+    .join("")
 
   return crypto
     .createHash("sha256")
     .update(
-      text,
-      "utf8"
+      Buffer.from(input, "utf8")
     )
     .digest()
 }
 
 
 // ============================================================
-// INNER FIELD DECODER
+// INNER FIELDS
 // ============================================================
 
 function decodeInnerFields(
   object,
-  salt
+  configSalt
 ) {
-
-  if (
-    !object ||
-    typeof object !== "object"
-  ) {
+  if (!object || typeof object !== "object") {
     return object
+  }
+
+  if (Array.isArray(object)) {
+    return object.map(item =>
+      decodeInnerFields(
+        item,
+        configSalt
+      )
+    )
   }
 
   const output = {}
 
-  for (
-    const [key, value]
-    of Object.entries(object)
-  ) {
-
+  for (const [key, value] of Object.entries(object)) {
     if (
       typeof value === "string" &&
-      value.trim()
+      value.length
     ) {
-
-      let decoded
-
-      if (
-        key === "configMessage"
-      ) {
-
-        decoded =
-          decodeConfigMessage(
-            value
-          )
-
-      } else {
-
-        decoded =
-          decryptXorLayer(
-            value,
-            salt
-          )
+      try {
+        if (key === "configMessage") {
+          output[key] =
+            decodeConfigMessage(value)
+        } else {
+          try {
+            output[key] =
+              decryptXorLayer(
+                value,
+                configSalt
+              )
+          } catch {
+            output[key] = value
+          }
+        }
+      } catch {
+        output[key] = value
       }
-
+    } else if (
+      value &&
+      typeof value === "object"
+    ) {
       output[key] =
-        decoded !== null
-          ? decoded
-          : value
-
+        decodeInnerFields(
+          value,
+          configSalt
+        )
     } else {
-
       output[key] = value
     }
   }
@@ -909,257 +664,102 @@ function decodeInnerFields(
 
 
 // ============================================================
-// PARSE EMBEDDED JSON
+// EMBEDDED JSON
 // ============================================================
 
-function parseEmbeddedJson(
-  object
-) {
+function parseEmbeddedJson(config) {
+  const fields = [
+    "v2rRawJson",
+    "overwriteServerData"
+  ]
 
-  const output = {
-    ...object
-  }
-
-  for (
-    const key of [
-      "v2rRawJson",
-      "overwriteServerData"
-    ]
-  ) {
-
-    const value =
-      output[key]
-
+  for (const field of fields) {
     if (
-      typeof value !== "string"
+      typeof config[field] !== "string"
     ) {
       continue
     }
 
     try {
+      const parsed =
+        JSON.parse(config[field])
 
-      const start =
-        value.indexOf("{")
-
-      const end =
-        value.lastIndexOf("}")
-
-      if (
-        start >= 0 &&
-        end > start
-      ) {
-
-        const extracted =
-          value.slice(
-            start,
-            end + 1
-          )
-
-        let parsed =
-          JSON.parse(
-            extracted
-          )
-
-        if (
-          typeof parsed === "string"
-        ) {
-          parsed =
-            JSON.parse(parsed)
-        }
-
-        output[key] =
-          parsed
-      }
-
+      config[field] = parsed
     } catch {
-      // leave original value
+      // ignore
     }
   }
 
-  return output
+  return config
 }
 
 
 // ============================================================
-// TRY OUTER DECRYPT
-// ============================================================
-
-function decryptOuter(
-  encryptedPayload
-) {
-
-  const allIVs = [
-
-    ...EHI.BYPASS_IVS.map(
-      iv => ({
-        iv,
-        mode: "bypass"
-      })
-    ),
-
-    ...EHI.STANDARD_IVS.map(
-      iv => ({
-        iv,
-        mode: "standard"
-      })
-    )
-
-  ]
-
-  for (
-    const item of allIVs
-  ) {
-
-    try {
-
-      const layer1 =
-        aesCbcDecrypt(
-          encryptedPayload,
-          EHI.L1_KEY,
-          item.iv
-        )
-
-      const text =
-        layer1.toString("utf8")
-
-      const parts =
-        text.split(":")
-
-      if (
-        parts.length < 3
-      ) {
-        continue
-      }
-
-      // First part is the AES-2 IV
-      const layer2Iv =
-        Buffer.from(
-          parts[0],
-          "base64"
-        )
-
-      if (
-        layer2Iv.length !== 16
-      ) {
-        continue
-      }
-
-      const layer2Ciphertext =
-        Buffer.from(
-          parts[2],
-          "base64"
-        )
-
-      if (
-        !layer2Ciphertext.length ||
-        layer2Ciphertext.length % 16 !== 0
-      ) {
-        continue
-      }
-
-      const layer2 =
-        aesCbcDecrypt(
-          layer2Ciphertext,
-          EHI.L2_KEY_STATIC,
-          layer2Iv
-        )
-
-      const xxtea =
-        xxteaDecrypt(
-          layer2,
-          EHI.EOO_MASTER_KEY
-        )
-
-      const jsonStart =
-        xxtea.indexOf(
-          Buffer.from("{")
-        )
-
-      if (
-        jsonStart < 0
-      ) {
-        continue
-      }
-
-      const jsonText =
-        xxtea
-          .subarray(jsonStart)
-          .toString("utf8")
-          .trim()
-
-      const config =
-        JSON.parse(jsonText)
-
-      if (
-        config &&
-        typeof config === "object"
-      ) {
-
-        return {
-          config,
-          mode: item.mode,
-          iv: item.iv.toString("hex")
-        }
-      }
-
-    } catch {
-      // try next IV
-    }
-  }
-
-  throw new Error(
-    "Tidak menemukan IV EHI yang cocok"
-  )
-}
-
-
-// ============================================================
-// FINAL STANDARD/LOCKED DECRYPT
+// LOCKED CONFIG
 // ============================================================
 
 async function decryptLockedConfig(
-  config,
-  salt
+  configData,
+  config
 ) {
-
-  const encrypted =
-    config.configData
-
   if (
-    !encrypted
+    typeof configData !== "string" ||
+    !configData.length
   ) {
     throw new Error(
-      "configData tidak ditemukan"
+      "configData kosong"
     )
   }
 
-  const xor =
-    decryptXorLayer(
-      encrypted,
-      salt
+  const configSalt =
+    String(
+      config.configSalt || ""
     )
 
-  if (
-    !xor
-  ) {
+  if (!configSalt) {
     throw new Error(
-      "Gagal XOR configData"
+      "configSalt kosong"
     )
   }
 
-  const raw =
-    Buffer.from(
-      xor,
-      "base64"
-    )
+  // ----------------------------------------------------------
+  // IMPORTANT:
+  // EHI standard configData:
+  //
+  // XOR characters using configSalt
+  // -> Base64
+  // -> binary lock payload
+  // ----------------------------------------------------------
 
-  if (
-    raw.length <= 50
+  let xorDecoded = ""
+
+  for (
+    let i = 0;
+    i < configData.length;
+    i++
   ) {
-    throw new Error(
-      "configData terlalu pendek"
+    xorDecoded += String.fromCharCode(
+      configData.charCodeAt(i) ^
+      configSalt.charCodeAt(
+        i % configSalt.length
+      )
     )
   }
+
+  const raw = Buffer.from(
+    xorDecoded,
+    "base64"
+  )
+
+  if (raw.length < 0x32 + 16) {
+    throw new Error(
+      `locked config terlalu pendek: ${raw.length}`
+    )
+  }
+
+  // ----------------------------------------------------------
+  // HEADER
+  // ----------------------------------------------------------
 
   const timeCost =
     raw.readUInt32LE(1)
@@ -1168,7 +768,7 @@ async function decryptLockedConfig(
     raw.readUInt32LE(5)
 
   const parallelism =
-    raw[9]
+    raw.readUInt8(9)
 
   const argonSalt =
     raw.subarray(
@@ -1188,49 +788,57 @@ async function decryptLockedConfig(
       0x1a
     )
 
+  // IMPORTANT:
+  // libsodium combined mode requires
+  // ciphertext + 16-byte authentication tag.
   const ciphertext =
     raw.subarray(
-      0x32,
-      raw.length - 16
+      0x32
     )
 
-  const tag =
-    raw.subarray(
-      raw.length - 16
+  if (
+    argonSalt.length !== 16
+  ) {
+    throw new Error(
+      "Argon2 salt harus 16 byte"
     )
+  }
 
   if (
     nonce.length !== 24
   ) {
     throw new Error(
-      "XChaCha nonce bukan 24 byte"
+      "XChaCha nonce harus 24 byte"
     )
   }
 
   if (
-    tag.length !== 16
+    ciphertext.length <= 16
   ) {
     throw new Error(
-      "Poly1305 tag bukan 16 byte"
+      "ciphertext terlalu pendek"
     )
   }
 
-  // Safety guard against pathological configs
+  // ----------------------------------------------------------
+  // PARAMETER CHECK
+  // ----------------------------------------------------------
+
   if (
     timeCost < 1 ||
     timeCost > 100
   ) {
     throw new Error(
-      "Argon2 timeCost tidak valid"
+      `Argon2 timeCost invalid: ${timeCost}`
     )
   }
 
   if (
     memoryCost < 8 ||
-    memoryCost > 1024 * 1024
+    memoryCost > 1048576
   ) {
     throw new Error(
-      "Argon2 memoryCost tidak valid"
+      `Argon2 memoryCost invalid: ${memoryCost}`
     )
   }
 
@@ -1239,160 +847,297 @@ async function decryptLockedConfig(
     parallelism > 64
   ) {
     throw new Error(
-      "Argon2 parallelism tidak valid"
+      `Argon2 parallelism invalid: ${parallelism}`
     )
   }
 
+  // ----------------------------------------------------------
+  // MASTER KEY
+  // ----------------------------------------------------------
+
   const masterKey =
-    generateMasterKey(
-      config
-    )
+    generateMasterKey(config)
 
-  const argonKey =
+  // ----------------------------------------------------------
+  // ARGON2ID
+  // ----------------------------------------------------------
+
+  const derived =
     await argon2id({
-
-      password:
-        masterKey,
-
-      salt:
-        argonSalt,
-
-      iterations:
-        timeCost,
-
-      parallelism:
-        parallelism,
-
-      memorySize:
-        memoryCost,
-
-      hashLength:
-        32,
-
-      outputType:
-        "binary"
+      password: masterKey,
+      salt: argonSalt,
+      iterations: timeCost,
+      memorySize: memoryCost,
+      parallelism,
+      hashLength: 32,
+      outputType: "binary"
     })
 
-  // ==========================================================
-  // XChaCha20-Poly1305
-  // ==========================================================
+  const key =
+    Buffer.from(derived)
 
-  const sodium =
-    sodiumModule
+  if (key.length !== 32) {
+    throw new Error(
+      "Argon2 menghasilkan key bukan 32 byte"
+    )
+  }
+
+  // ----------------------------------------------------------
+  // XCHACHA20-POLY1305
+  // ----------------------------------------------------------
 
   await sodium.ready
 
-  const combined =
-    Buffer.concat([
-      ciphertext,
-      tag
-    ])
+  let decrypted
 
-  const plaintext =
-    sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
-      null,
-      combined,
-      aad,
-      nonce,
-      Buffer.from(argonKey)
-    )
-
-  if (
-    !plaintext
-  ) {
+  try {
+    decrypted =
+      sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+        null,
+        ciphertext,
+        aad,
+        nonce,
+        key
+      )
+  } catch (error) {
     throw new Error(
-      "XChaCha20-Poly1305 gagal"
+      "XChaCha20 gagal: authentication tag tidak cocok"
     )
   }
 
-  return JSON.parse(
-    Buffer.from(
-      plaintext
-    ).toString("utf8")
+  if (!decrypted) {
+    throw new Error(
+      "XChaCha20 gagal decrypt"
+    )
+  }
+
+  return Buffer.from(decrypted)
+}
+
+
+// ============================================================
+// OUTER EHI
+// ============================================================
+
+function parseJsonFromBytes(buffer) {
+  const text =
+    buffer.toString("utf8")
+
+  const start =
+    text.indexOf("{")
+
+  if (start === -1) {
+    throw new Error(
+      "JSON hasil XXTEA tidak ditemukan"
+    )
+  }
+
+  const jsonText =
+    text.slice(start)
+
+  try {
+    return JSON.parse(jsonText)
+  } catch {
+    // Try until the last }
+    const end =
+      jsonText.lastIndexOf("}")
+
+    if (end === -1) {
+      throw new Error(
+        "JSON hasil decrypt invalid"
+      )
+    }
+
+    return JSON.parse(
+      jsonText.slice(0, end + 1)
+    )
+  }
+}
+
+
+function decryptOuter(
+  payload
+) {
+  let lastError = null
+
+  for (const candidate of ALL_IVS) {
+    try {
+      const layer1 =
+        aesCbcDecrypt(
+          payload,
+          L1_KEY,
+          candidate.iv
+        )
+
+      const text =
+        layer1.toString("utf8")
+
+      const parts =
+        text.split(":")
+
+      if (parts.length < 3) {
+        throw new Error(
+          "layer 1 bukan format EHI"
+        )
+      }
+
+      const iv2 =
+        Buffer.from(
+          parts[0],
+          "base64"
+        )
+
+      const encrypted2 =
+        Buffer.from(
+          parts[2],
+          "base64"
+        )
+
+      if (
+        iv2.length !== 16
+      ) {
+        throw new Error(
+          "L2 IV invalid"
+        )
+      }
+
+      const layer2 =
+        aesCbcDecrypt(
+          encrypted2,
+          L2_KEY_STATIC,
+          iv2
+        )
+
+      const layer3 =
+        xxteaDecrypt(
+          layer2,
+          EOO_MASTER_KEY
+        )
+
+      const config =
+        parseJsonFromBytes(
+          layer3
+        )
+
+      if (
+        !config ||
+        typeof config !== "object"
+      ) {
+        throw new Error(
+          "config bukan object"
+        )
+      }
+
+      return {
+        config,
+        mode: candidate.mode,
+        matchedIv:
+          candidate.iv.toString("hex")
+      }
+
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw new Error(
+    `Semua IV EHI gagal: ${
+      lastError?.message || "unknown"
+    }`
   )
 }
 
 
 // ============================================================
-// EXTRACT COMMON CONFIG
+// COMMON FIELD EXTRACTION
 // ============================================================
 
-function extractCommon(
-  config
+function findValue(
+  object,
+  names
 ) {
-
-  const result = {
-    host:
-      config.host ||
-      config.server ||
-      config.address ||
-      "",
-
-    port:
-      config.port ||
-      config.serverPort ||
-      "",
-
-    username:
-      config.username ||
-      config.user ||
-      "",
-
-    password:
-      config.password ||
-      "",
-
-    sni:
-      config.sniHostname ||
-      config.sni ||
-      config.serverName ||
-      "",
-
-    proxy:
-      config.remoteProxy ||
-      config.proxy ||
-      "",
-
-    payload:
-      config.payload ||
-      "",
-
-    config
+  if (
+    !object ||
+    typeof object !== "object"
+  ) {
+    return undefined
   }
 
-  // Some EHI versions keep SSH
-  // inside sshField
-  if (
-    typeof config.sshField === "string" &&
-    config.sshField.trim()
-  ) {
-
-    const ssh =
-      config.sshField
-
-    // host:port@user:pass
-    const match =
-      ssh.match(
-        /^(.+?):(\d+)@([^:]+):(.*)$/
-      )
-
-    if (match) {
-
-      if (!result.host)
-        result.host = match[1]
-
-      if (!result.port)
-        result.port = match[2]
-
-      if (!result.username)
-        result.username = match[3]
-
-      if (!result.password)
-        result.password = match[4]
+  for (const name of names) {
+    if (
+      object[name] !== undefined &&
+      object[name] !== null &&
+      object[name] !== ""
+    ) {
+      return object[name]
     }
   }
 
-  return result
+  return undefined
+}
+
+
+function extractCommon(config) {
+  const host =
+    findValue(config, [
+      "host",
+      "sshHost",
+      "server",
+      "address"
+    ])
+
+  const port =
+    findValue(config, [
+      "port",
+      "sshPort"
+    ])
+
+  const username =
+    findValue(config, [
+      "username",
+      "user",
+      "sshUsername",
+      "sshUser"
+    ])
+
+  const password =
+    findValue(config, [
+      "password",
+      "pass",
+      "sshPassword",
+      "sshPass"
+    ])
+
+  const sni =
+    findValue(config, [
+      "sniHostname",
+      "sni",
+      "serverName"
+    ])
+
+  const proxy =
+    findValue(config, [
+      "remoteProxy",
+      "proxy",
+      "proxyHost"
+    ])
+
+  const payload =
+    findValue(config, [
+      "payload",
+      "httpPayload",
+      "requestPayload"
+    ])
+
+  return {
+    host: host ?? null,
+    port: port ?? null,
+    username: username ?? null,
+    password: password ?? null,
+    sni: sni ?? null,
+    proxy: proxy ?? null,
+    payload: payload ?? null
+  }
 }
 
 
@@ -1400,23 +1145,27 @@ function extractCommon(
 // MAIN DECRYPTOR
 // ============================================================
 
-async function decryptEHI(
-  file
-) {
+async function decryptEHI(buffer) {
+  if (!Buffer.isBuffer(buffer)) {
+    buffer = Buffer.from(buffer)
+  }
 
-  const container =
-    parseEhiContainer(
-      file
-    )
-
-  if (
-    container.type &&
-    container.type.toLowerCase() !== "ehi"
-  ) {
+  if (!buffer.length) {
     throw new Error(
-      `Bukan file EHI (${container.type})`
+      "File EHI kosong"
     )
   }
+
+  // ----------------------------------------------------------
+  // CONTAINER
+  // ----------------------------------------------------------
+
+  const container =
+    parseEhiContainer(buffer)
+
+  // ----------------------------------------------------------
+  // OUTER
+  // ----------------------------------------------------------
 
   const outer =
     decryptOuter(
@@ -1426,43 +1175,69 @@ async function decryptEHI(
   let config =
     outer.config
 
-  const salt =
-    config.configSalt ||
-    "EVZJNI"
-
   // ----------------------------------------------------------
-  // BYPASS
+  // LOCKED / STANDARD
   // ----------------------------------------------------------
 
   if (
-    outer.mode === "bypass"
+    outer.mode === "standard" &&
+    config.configData
   ) {
-
-    config =
-      decodeInnerFields(
-        config,
-        salt
-      )
-  }
-
-  // ----------------------------------------------------------
-  // STANDARD / LOCKED
-  // ----------------------------------------------------------
-
-  else {
-
-    const finalConfig =
+    const decrypted =
       await decryptLockedConfig(
-        config,
-        salt
+        config.configData,
+        config
       )
 
-    config =
-      decodeInnerFields(
-        finalConfig,
-        salt
-      )
+    const decodedText =
+      decrypted.toString("utf8")
+
+    let inner
+
+    try {
+      inner =
+        JSON.parse(decodedText)
+    } catch {
+      const start =
+        decodedText.indexOf("{")
+
+      const end =
+        decodedText.lastIndexOf("}")
+
+      if (
+        start === -1 ||
+        end === -1
+      ) {
+        throw new Error(
+          "Inner config JSON tidak valid"
+        )
+      }
+
+      inner =
+        JSON.parse(
+          decodedText.slice(
+            start,
+            end + 1
+          )
+        )
+    }
+
+    // Merge inner config
+    config = {
+      ...config,
+      ...inner
+    }
   }
+
+  // ----------------------------------------------------------
+  // INNER FIELD DECODING
+  // ----------------------------------------------------------
+
+  config =
+    decodeInnerFields(
+      config,
+      config.configSalt || ""
+    )
 
   config =
     parseEmbeddedJson(
@@ -1470,28 +1245,58 @@ async function decryptEHI(
     )
 
   const common =
-    extractCommon(
-      config
-    )
+    extractCommon(config)
 
   return {
-
     success: true,
 
-    type:
-      container.type,
+    type: container.type,
 
     appVersion:
-      container.appVersion,
+      container.version,
 
     mode:
       outer.mode,
 
     matchedIv:
-      outer.iv,
+      outer.matchedIv,
 
-    ...common
+    ...common,
+
+    config
   }
+}
+
+
+// ============================================================
+// HTTP BODY
+// ============================================================
+
+function getBodyBuffer(req) {
+  if (Buffer.isBuffer(req.body)) {
+    return req.body
+  }
+
+  if (
+    req.body &&
+    req.body.type === "Buffer" &&
+    Array.isArray(req.body.data)
+  ) {
+    return Buffer.from(
+      req.body.data
+    )
+  }
+
+  if (
+    typeof req.body === "string"
+  ) {
+    return Buffer.from(
+      req.body,
+      "base64"
+    )
+  }
+
+  return null
 }
 
 
@@ -1503,11 +1308,6 @@ module.exports = async function handler(
   req,
   res
 ) {
-
-  // ==========================================================
-  // CORS
-  // ==========================================================
-
   res.setHeader(
     "Access-Control-Allow-Origin",
     "*"
@@ -1523,108 +1323,74 @@ module.exports = async function handler(
     "Content-Type"
   )
 
-  // ==========================================================
-  // OPTIONS
-  // ==========================================================
-
-  if (
-    req.method === "OPTIONS"
-  ) {
-    return res.status(200).end()
+  if (req.method === "OPTIONS") {
+    return res
+      .status(204)
+      .end()
   }
 
-  // ==========================================================
-  // GET
-  // ==========================================================
+  // ----------------------------------------------------------
+  // TEST GET
+  // ----------------------------------------------------------
 
-  if (
-    req.method === "GET"
-  ) {
-
-    return safeJson(
-      res,
-      200,
-      {
-        success: true,
-        status: "online",
-        api: "EHI Decrypt API",
-        version: "2.0.0",
-        endpoint: "/api/ehi",
-        method: "POST"
-      }
-    )
+  if (req.method === "GET") {
+    return res.status(200).json({
+      success: true,
+      api: "HTTP Injector EHI Decrypt API",
+      status: "online",
+      endpoint: "/api/ehi",
+      method: "POST",
+      format: "application/octet-stream"
+    })
   }
 
-  // ==========================================================
-  // POST
-  // ==========================================================
+  // ----------------------------------------------------------
+  // ONLY POST
+  // ----------------------------------------------------------
 
-  if (
-    req.method !== "POST"
-  ) {
-
-    return safeJson(
-      res,
-      405,
-      {
-        success: false,
-        error: "Method Not Allowed"
-      }
-    )
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed"
+    })
   }
 
   try {
+    const buffer =
+      getBodyBuffer(req)
 
-    const file =
-      getBufferBody(
-        req
-      )
-
-    if (
-      file.length === 0
-    ) {
-      throw new Error(
-        "File EHI kosong"
-      )
+    if (!buffer) {
+      return res.status(400).json({
+        success: false,
+        error: "Body file EHI tidak ditemukan"
+      })
     }
 
-    if (
-      file.length >
-      4 * 1024 * 1024
-    ) {
-      throw new Error(
-        "File EHI terlalu besar"
-      )
+    if (!buffer.length) {
+      return res.status(400).json({
+        success: false,
+        error: "File EHI kosong"
+      })
     }
 
     const result =
-      await decryptEHI(
-        file
-      )
+      await decryptEHI(buffer)
 
-    return safeJson(
-      res,
-      200,
+    return res.status(200).json(
       result
     )
 
   } catch (error) {
-
     console.error(
-      "[EHI]",
+      "[EHI DECRYPT ERROR]",
       error
     )
 
-    return safeJson(
-      res,
-      400,
-      {
-        success: false,
-
-        error:
-          error?.message ||
-          "Gagal decrypt EHI"
-      }
-    )
+    return res.status(400).json({
+      success: false,
+      error:
+        error?.message ||
+        "Gagal decrypt EHI"
+    })
   }
 }
