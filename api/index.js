@@ -1,9 +1,9 @@
 const express = require("express");
 const multer = require("multer");
-const path = require("path");
+
 const hcDecrypt = require("../decryptors/hc");
 const ehiDecrypt = require("../decryptors/ehi");
-require("../decryptors/ehi")
+
 const app = express();
 
 const upload = multer({
@@ -18,9 +18,29 @@ app.use(express.urlencoded({
   extended: true
 }));
 
-/* ========================================
-   API DECRYPT
-======================================== */
+// ========================================
+// HOME
+// ========================================
+
+app.get("/", (req, res) => {
+  res.redirect("/index.html");
+});
+
+// ========================================
+// API INFO
+// ========================================
+
+app.get("/api", (req, res) => {
+  res.json({
+    success: true,
+    name: "BONGKAR CONFIG",
+    formats: [".hc", ".ehi"]
+  });
+});
+
+// ========================================
+// DECRYPT
+// ========================================
 
 app.post(
   "/api/decrypt",
@@ -36,17 +56,13 @@ app.post(
         });
       }
 
-      const filename =
-        String(req.file.originalname || "")
-          .toLowerCase()
-          .trim();
+      const filename = String(
+        req.file.originalname || ""
+      ).toLowerCase();
 
       let result;
 
-      /* ==================================
-         HC
-      ================================== */
-
+      // HC
       if (filename.endsWith(".hc")) {
 
         result = hcDecrypt(
@@ -55,10 +71,7 @@ app.post(
 
       }
 
-      /* ==================================
-         EHI
-      ================================== */
-
+      // EHI
       else if (filename.endsWith(".ehi")) {
 
         result = await ehiDecrypt.execute(
@@ -67,10 +80,7 @@ app.post(
 
       }
 
-      /* ==================================
-         FORMAT TIDAK DIDUKUNG
-      ================================== */
-
+      // FORMAT LAIN
       else {
 
         return res.status(400).json({
@@ -81,16 +91,11 @@ app.post(
 
       }
 
-      /* ==================================
-         HASIL DECRYPT
-      ================================== */
-
       if (!result) {
 
         return res.status(400).json({
           success: false,
-          error:
-            "Gagal membongkar config"
+          error: "Gagal membongkar config"
         });
 
       }
@@ -121,36 +126,8 @@ app.post(
           error.message ||
           "Internal Server Error"
       });
-
     }
-
   }
 );
-
-
-/* ========================================
-   API INFO
-======================================== */
-
-app.get(
-  "/api",
-  (req, res) => {
-
-    res.status(200).json({
-      success: true,
-      name: "BONGKAR CONFIG",
-      formats: [
-        ".hc",
-        ".ehi"
-      ]
-    });
-
-  }
-);
-
-
-/* ========================================
-   EXPORT VERCEL
-======================================== */
 
 module.exports = app;
