@@ -51,7 +51,7 @@ SET FILE
 
 function setFile(file) {
 
-if (!/\.(hc|ehi)$/i.test(file.name)) {
+if (!file.name.toLowerCase().endsWith(".hc")) {
 
 selectedFile = null;
 
@@ -62,7 +62,7 @@ fileName.textContent = "";
 fileName.style.display = "none";
 
 showStatus(
-  "❌ Hanya file .HC atau .EHI yang diperbolehkan",
+  "❌ Hanya file .HC yang diperbolehkan",
   "error"
 );
 
@@ -93,7 +93,7 @@ decryptBtn.addEventListener("click", async () => {
 
 if (!selectedFile) {
 showStatus(
-"❌ Pilih file HC atau EHI terlebih dahulu",
+"❌ Pilih file HC terlebih dahulu",
 "error"
 );
 
