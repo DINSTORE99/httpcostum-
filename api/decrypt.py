@@ -5,7 +5,7 @@ import zipfile
 import io
 from http.server import BaseHTTPRequestHandler
 import cgi
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES, ChaCha20
 
 # Kunci Dark Tunnel (.dark)
 DT_KEY_256 = b"$B&E)H@McQfThWmZq4t7w!z%C*F-JaNd"
@@ -27,12 +27,12 @@ def decrypt_dark_tunnel(file_bytes):
     except Exception as e:
         return {"status": "error", "message": f"Gagal decrypt Dark Tunnel: {str(e)}"}
 
-def decrypt_http_custom_or_injector(file_bytes, ext):
+def decrypt_http_custom(file_bytes):
     """
-    Menangani ekstrak file container ZIP/Encrypted dari .hc (HTTP Custom) dan .ehi (HTTP Injector)
+    Menangani ekstraksi file .hc (HTTP Custom)
     """
     try:
-        # File .hc dan .ehi umumnya berupa arsip ZIP atau terenkripsi lapis bawah
+        # Cek apakah file berupa ZIP (karena beberapa versi .hc adalah arsip terenkripsi)
         if zipfile.is_zipfile(io.BytesIO(file_bytes)):
             with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
                 file_list = z.namelist()
@@ -47,21 +47,60 @@ def decrypt_http_custom_or_injector(file_bytes, ext):
                 
                 return {
                     "status": "success",
-                    "type": f"HTTP {'Custom (.hc)' if ext == '.hc' else 'Injector (.ehi)'} (ZIP Container)",
+                    "type": "HTTP Custom (.hc) - ZIP Container",
                     "files_inside": file_list,
                     "data": extracted_contents
                 }
-        else:
-            # Jika file terkunci/terenkripsi penuh oleh algoritma aplikasi
-            decoded_text = file_bytes.decode('utf-8', errors='ignore')
+        
+        # Jika bukan ZIP, coba parsing teks mentah atau cari pola JSON di dalam byte
+        raw_text = file_bytes.decode('utf-8', errors='ignore')
+        
+        # Coba cari apakah ada struktur JSON tersembunyi
+        start_idx = raw_text.find('{')
+        end_idx = raw_text.rfind('}')
+        if start_idx != -1 and end_idx != -1:
+            try:
+                json_part = json.loads(raw_text[start_idx:end_idx+1])
+                return {
+                    "status": "success",
+                    "type": "HTTP Custom (.hc) - Parsed JSON",
+                    "data": json_part
+                }
+            except:
+                pass
+
+        return {
+            "status": "success",
+            "type": "HTTP Custom (.hc) - Encrypted Payload",
+            "message": "File ini menggunakan enkripsi privat versi HTTP Custom terbaru. Memerlukan key khusus versi app terkait untuk membongkar byte-nya secara penuh.",
+            "raw_preview": raw_text[:500] + "..." if len(raw_text) > 500 else raw_text
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Gagal memproses file .hc: {str(e)}"}
+
+def decrypt_http_injector(file_bytes):
+    """
+    Menangani ekstraksi file .ehi (HTTP Injector)
+    """
+    try:
+        raw_text = file_bytes.decode('utf-8', errors='ignore')
+        
+        # HTTP Injector seringkali menyimpan data konfigurasi dengan awalan header tertentu atau format base64
+        if "NPVTSUB1" in raw_text or "NPVT1" in raw_text:
             return {
                 "status": "success",
-                "type": f"HTTP {'Custom (.hc)' if ext == '.hc' else 'Injector (.ehi)'} (Raw Payload)",
-                "raw_preview": decoded_text[:1000] if len(decoded_text) > 1000 else decoded_text,
-                "note": "File terkunci enkripsi privat versi aplikasi terkait. Menampilkan struktur raw/metadata."
+                "type": "HTTP Injector (.ehi) - Submitter Config",
+                "content": raw_text
             }
+
+        return {
+            "status": "success",
+            "type": "HTTP Injector (.ehi) - Encrypted Container",
+            "message": "File .ehi terkunci oleh password/HWID atau enkripsi internal HTTP Injector.",
+            "raw_preview": raw_text[:500] + "..." if len(raw_text) > 500 else raw_text
+        }
     except Exception as e:
-        return {"status": "error", "message": f"Gagal membaca format {ext}: {str(e)}"}
+        return {"status": "error", "message": f"Gagal memproses file .ehi: {str(e)}"}
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -89,9 +128,9 @@ class handler(BaseHTTPRequestHandler):
             if filename.endswith('.dark'):
                 response_data = decrypt_dark_tunnel(file_bytes)
             elif filename.endswith('.hc'):
-                response_data = decrypt_http_custom_or_injector(file_bytes, '.hc')
+                response_data = decrypt_http_custom(file_bytes)
             elif filename.endswith('.ehi'):
-                response_data = decrypt_http_custom_or_injector(file_bytes, '.ehi')
+                response_data = decrypt_http_injector(file_bytes)
             else:
                 response_data = {"status": "error", "message": "Format file tidak didukung! Gunakan .dark, .hc, atau .ehi"}
 
