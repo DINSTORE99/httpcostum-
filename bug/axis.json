@@ -1,5 +1,0 @@
-{
-  "operator": "axis",
-  "bug": "axis.co.id",
-  "payload": "GET / HTTP/1.1[c]Host: axis.co.id[c]X-Online-Host: axis.co.id[c][c]"
-}
