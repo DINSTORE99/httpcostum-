@@ -1,6 +1,5 @@
 const crypto = require("crypto");
 const argon2 = require("argon2");
-const { xchacha20poly1305 } = require("@noble/ciphers/chacha.js");
 const EHI = require("../config/ehi.keys");
 
 function xorBytes(a, b) {
@@ -105,22 +104,50 @@ function extractEhiPayload(buffer) {
 }
 
 function generateMasterKey(config) {
-  return Buffer.from(typeof config === "string" ? config : JSON.stringify(config), "utf8");
+  const payload = [
+    config?.configAesKey ?? "",
+    config?.configIdentifier ?? "",
+    config?.configSalt ?? "",
+    String(config?.configTimestamp ?? 0),
+    String(config?.configExpiryTimestamp ?? 0),
+    config?.lockModes ?? "",
+    config?.lockModesHash ?? "",
+    config?.configHwid ?? "",
+    config?.configLockMobileOperatorId ?? ""
+  ].filter(Boolean).join("");
+  return crypto.createHash("sha256").update(payload, "utf8").digest();
 }
 
-function decryptConfigData(data, salt) {
-  return xorBytes(Buffer.isBuffer(data) ? data : Buffer.from(data, "utf8"),
-                  Buffer.from(String(salt || "EVZJNI"), "utf8"));
+function decryptConfigData(ciphertextStr, key) {
+  let s = String(ciphertextStr || "");
+  if (!s.trim()) return s;
+  let reversed = s.split("").reverse().join("");
+  let clean = reversed.replace(/\?/g, "");
+  const rem = clean.length % 4;
+  if (rem) clean += "=".repeat(4 - rem);
+  let translated = "";
+  for (const ch of clean) {
+    const i = EHI.CUSTOM_ALPHABET.indexOf(ch);
+    translated += i === -1 ? ch : EHI.STD_ALPHABET[i];
+  }
+  const hexString = Buffer.from(translated, "base64").toString("ascii");
+  const evenHex = hexString.length % 2 ? "0" + hexString : hexString;
+  const raw = Buffer.from(evenHex, "hex");
+  const keyBuf = Buffer.from(String(key), "utf8");
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const x = raw[i] ^ keyBuf[i % keyBuf.length];
+    if (x !== 0) out.push(x);
+  }
+  return Buffer.from(out).toString("utf8");
 }
 
-function decryptXChaCha(key, nonce, ciphertext, tag, aad) {
+async function decryptXChaCha(key, nonce, ciphertext, tag, aad) {
   if (key.length !== 32) throw new Error(`XChaCha key harus 32 byte, dapat ${key.length}`);
   if (nonce.length !== 24) throw new Error(`XChaCha nonce harus 24 byte, dapat ${nonce.length}`);
-  const cipher = xchacha20poly1305(new Uint8Array(key), new Uint8Array(nonce));
-  return Buffer.from(cipher.decrypt(
-    new Uint8Array(Buffer.concat([ciphertext, tag])),
-    aad ? new Uint8Array(aad) : undefined
-  ));
+  const { xchacha20poly1305 } = await import("@noble/ciphers/chacha.js");
+  const cipher = xchacha20poly1305(new Uint8Array(key), new Uint8Array(nonce), aad ? new Uint8Array(aad) : undefined);
+  return Buffer.from(cipher.decrypt(new Uint8Array(Buffer.concat([ciphertext, tag]))));
 }
 
 function decodeInnerFields(obj) {
@@ -188,7 +215,7 @@ async function ehiDecrypt(buffer) {
     if (!parsedConfig.configData) throw new Error("configData tidak ditemukan");
 
     const encoded = decryptConfigData(
-      Buffer.from(parsedConfig.configData, "utf8"),
+      parsedConfig.configData,
       parsedConfig.configSalt || "EVZJNI"
     );
 
@@ -215,7 +242,7 @@ async function ehiDecrypt(buffer) {
       raw: true
     });
 
-    const decrypted = decryptXChaCha(key, nonce, ciphertext, tag, aad);
+    const decrypted = await decryptXChaCha(key, nonce, ciphertext, tag, aad);
     finalConfig = JSON.parse(decrypted.toString("utf8"));
   }
 
