@@ -1,8 +1,12 @@
 {
-  "name": "ehi-decrypt-api",
-  "version": "1.0.0",
+  "name": "httpcostum-api",
+  "version": "2.0.0",
   "private": true,
   "engines": {
     "node": "22.x"
+  },
+  "dependencies": {
+    "hash-wasm": "^4.12.0",
+    "libsodium-wrappers": "^0.8.4"
   }
 }
