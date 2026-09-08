@@ -1,7 +1,8 @@
-const crypto = require("crypto");
-
-module.exports = {
-  initialXor: Buffer.from("e382e4b8adc386f09f9293", "hex"),
+const HC = {
+  initialXor: Buffer.from(
+    "e382e4b8adc386f09f9293",
+    "hex"
+  ),
 
   nonce: Buffer.alloc(8, 0xdb),
 
@@ -14,7 +15,9 @@ module.exports = {
     "81342f558a6273bac4548d473f54c4ffc7c41747dee81369acab9c787d41ab9c",
     "45635e6fc70486e2fd10d3c2b4780f02d0b4c5f4aa929fc54f86bb8fa4417944",
     "3d632a251c9820f2baf83e15498d27548fc67921cb437f8ce48505989378adea"
-  ].map(x => Buffer.from(x, "hex")),
+  ].map(
+    x => Buffer.from(x, "hex")
+  ),
 
   rstKeys: [
     "JN1k3YHc2.6_v235",
@@ -29,20 +32,24 @@ module.exports = {
   ],
 
   jklOld: Buffer.from([
-    0xd5,0xd4,0xd3,0xd2,0xd1,
-    0xd0,0xcf,0xce,0xcd,0xcc,
-    0xbd,0xbc,0xbb,0xba,0xb9,
-    0xb8,0xb7,0xb6,0xb5,0xb4
+    0xd5, 0xd4, 0xd3, 0xd2, 0xd1,
+    0xd0, 0xcf, 0xce, 0xcd, 0xcc,
+    0xbd, 0xbc, 0xbb, 0xba, 0xb9,
+    0xb8, 0xb7, 0xb6, 0xb5, 0xb4
   ]),
 
   jklNew: Buffer.from([
-    8,9,10,11,12,13,14,15,
-    17,17,5,4,3,2,1,0,
-    255,254,253,252
+    8, 9, 10, 11, 12,
+    13, 14, 15, 17, 17,
+    5, 4, 3, 2, 1,
+    0, 255, 254, 253, 252
   ]),
 
   rstXor: Buffer.from(
-    Array.from({ length: 20 }, (_, i) => i + 2)
+    Array.from(
+      { length: 20 },
+      (_, i) => i + 2
+    )
   ),
 
   braille:
@@ -83,3 +90,5 @@ module.exports = {
     "dnsResolver"
   ]
 };
+
+module.exports = HC;
