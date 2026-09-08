@@ -1,13 +1,19 @@
 {
   "version": 2,
-  "routes": [
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
     {
-      "src": "/api/decrypt",
-      "dest": "/api/decrypt.js"
+      "source": "/api/hc",
+      "destination": "/api/hc.js"
     },
     {
-      "src": "/(.*)",
-      "dest": "/public/$1"
+      "source": "/api/ehi",
+      "destination": "/api/ehi.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
