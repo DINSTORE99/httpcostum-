@@ -1,805 +1,625 @@
-const uploadBox = document.getElementById("uploadBox");
+"use strict";
+
+// ========================================
+// ELEMENT
+// ========================================
 const fileInput = document.getElementById("fileInput");
+const uploadBox = document.getElementById("uploadBox");
 const fileName = document.getElementById("fileName");
 const decryptBtn = document.getElementById("decryptBtn");
-const statusBox = document.getElementById("status");
-const resultBox = document.getElementById("result");
+const statusEl = document.getElementById("status");
+const resultEl = document.getElementById("result");
 
 let selectedFile = null;
 
-/* ========================================
-   FILE SELECT
-======================================== */
 
-fileInput.addEventListener("change", () => {
-  const file = fileInput.files[0];
+// ========================================
+// PILIH FILE
+// ========================================
+fileInput?.addEventListener("change", () => {
+  const file = fileInput.files?.[0];
 
-  if (!file) return;
-
-  setFile(file);
-});
-
-
-/* ========================================
-   DRAG & DROP
-======================================== */
-
-uploadBox.addEventListener("dragover", (e) => {
-  e.preventDefault();
-  uploadBox.classList.add("dragover");
-});
-
-uploadBox.addEventListener("dragleave", () => {
-  uploadBox.classList.remove("dragover");
-});
-
-uploadBox.addEventListener("drop", (e) => {
-  e.preventDefault();
-
-  uploadBox.classList.remove("dragover");
-
-  const file = e.dataTransfer.files[0];
-
-  if (file) {
-    setFile(file);
+  if (!file) {
+    resetFile();
+    return;
   }
+
+  handleFile(file);
 });
 
 
-/* ========================================
-   SET FILE
-======================================== */
+// ========================================
+// DRAG & DROP
+// ========================================
+if (uploadBox) {
+  ["dragenter", "dragover"].forEach(eventName => {
+    uploadBox.addEventListener(eventName, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadBox.classList.add("dragging");
+    });
+  });
 
-function setFile(file) {
+  ["dragleave", "drop"].forEach(eventName => {
+    uploadBox.addEventListener(eventName, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadBox.classList.remove("dragging");
+    });
+  });
 
-  const name = file.name.toLowerCase();
+  uploadBox.addEventListener("drop", e => {
+    const file = e.dataTransfer?.files?.[0];
 
-  if (!name.endsWith(".hc")) {
+    if (!file) return;
 
+    handleFile(file);
+  });
+}
+
+
+// ========================================
+// HANDLE FILE
+// ========================================
+function handleFile(file) {
+  const name = file.name || "";
+
+  if (!name.toLowerCase().endsWith(".hc")) {
     selectedFile = null;
 
-    decryptBtn.disabled = true;
+    if (fileName) {
+      fileName.textContent = "❌ File harus berformat .HC";
+    }
 
-    fileName.textContent = "";
-    fileName.style.display = "none";
+    if (decryptBtn) {
+      decryptBtn.disabled = true;
+    }
 
-    showStatus(
-      "❌ Hanya file .HC yang diperbolehkan",
-      "error"
-    );
-
+    showStatus("❌ Format file tidak didukung", "error");
     return;
   }
 
   selectedFile = file;
 
-  fileName.textContent = "📄 " + file.name;
-  fileName.style.display = "block";
+  if (fileName) {
+    fileName.textContent = `📄 ${file.name}`;
+  }
 
-  decryptBtn.disabled = false;
+  if (decryptBtn) {
+    decryptBtn.disabled = false;
+  }
+
+  resultEl.innerHTML = "";
 
   showStatus(
-    "✅ File siap dibongkar",
+    `✅ File siap: ${file.name}`,
     "success"
   );
 }
 
 
-/* ========================================
-   DECRYPT
-======================================== */
+// ========================================
+// RESET FILE
+// ========================================
+function resetFile() {
+  selectedFile = null;
 
-decryptBtn.addEventListener("click", async () => {
+  if (fileName) {
+    fileName.textContent = "";
+  }
 
+  if (decryptBtn) {
+    decryptBtn.disabled = true;
+  }
+}
+
+
+// ========================================
+// BONGKAR CONFIG
+// ========================================
+decryptBtn?.addEventListener("click", async () => {
   if (!selectedFile) {
-
-    showStatus(
-      "❌ Pilih file HC terlebih dahulu",
-      "error"
-    );
-
+    showStatus("❌ Pilih file HC terlebih dahulu", "error");
     return;
   }
 
   decryptBtn.disabled = true;
 
-  decryptBtn.innerHTML =
-    "⏳ MEMPROSES...";
-
-  resultBox.innerHTML = "";
+  resultEl.innerHTML = "";
 
   showStatus(
-    "🔄 Sedang membongkar config...",
-    "loading"
+    "⏳ Sedang membongkar config...",
+    "running"
   );
 
   try {
-
     const formData = new FormData();
 
-    formData.append(
-      "file",
-      selectedFile
-    );
+    formData.append("file", selectedFile);
 
-    const response = await fetch(
-      "/api/decrypt",
-      {
-        method: "POST",
-        body: formData
-      }
-    );
-
-    const text = await response.text();
+    const response = await fetch("/api/decrypt", {
+      method: "POST",
+      body: formData
+    });
 
     let data;
 
     try {
-
-      data = JSON.parse(text);
-
+      data = await response.json();
     } catch {
-
-      console.error(
-        "Response server:",
-        text
-      );
-
       throw new Error(
-        "Server tidak mengembalikan JSON"
+        `Server mengembalikan response tidak valid (${response.status})`
       );
     }
 
-    if (!response.ok || !data.success) {
-
+    if (!response.ok || data?.success === false) {
       throw new Error(
-        data.error ||
+        data?.message ||
+        data?.error ||
         "Gagal membongkar config"
       );
     }
 
     renderResult(data);
 
+    // 🔔 SATU KALI "TING"
+    successSound();
+
     showStatus(
       "✅ Config berhasil dibongkar",
       "success"
     );
 
-  } catch (error) {
-
-    console.error(error);
-
-    showStatus(
-      "❌ " + error.message,
-      "error"
-    );
-
-  } finally {
-
-    decryptBtn.disabled = false;
-
-    decryptBtn.innerHTML =
-      "🔓 BONGKAR CONFIG";
-  }
-
-});
-
-
-/* ========================================
-   RENDER RESULT
-======================================== */
-
-function renderResult(data) {
-
-  resultBox.innerHTML = "";
-
-  /*
-   * API biasanya mengirim:
-   *
-   * data.result = JSON STRING
-   *
-   * Contoh:
-   * data.result = '{"ssh":"...","payload":"..."}'
-   *
-   * Jadi harus JSON.parse().
-   */
-
-  let config = data.result || data.config || data;
-
-  if (typeof config === "string") {
-
-    try {
-
-      config = JSON.parse(config);
-
-    } catch {
-
-      /*
-       * Kalau bukan JSON,
-       * tampilkan sebagai raw result.
-       */
-
-      renderRawResult(config);
-
-      return;
-    }
-  }
-
-  if (
-    !config ||
-    typeof config !== "object"
-  ) {
-
-    renderRawResult(
-      String(config || "")
-    );
-
-    return;
-  }
-
-
-  /* ======================================
-     TITLE
-  ====================================== */
-
-  const title =
-    document.createElement("h2");
-
-  title.className =
-    "result-title";
-
-  title.textContent =
-    "📋 HASIL CONFIG";
-
-  resultBox.appendChild(title);
-
-
-  let count = 0;
-
-
-  /* ======================================
-     SSH
-  ====================================== */
-
-  const sshText =
-    getSSH(config);
-
-  if (sshText) {
-
-    resultBox.appendChild(
-      createField(
-        "ssh",
-        "🔑 SSH",
-        sshText,
-        true
-      )
-    );
-
-    count++;
-  }
-
-
-  /* ======================================
-     FIELD PRIORITAS
-  ====================================== */
-
-  const priorityKeys = [
-
-    "payload",
-
-    "proxy",
-
-    "sni",
-
-    "expiryTime",
-
-    "lockAllConfig",
-
-    "notes",
-
-    "note",
-
-    "ovpnUserAndPass",
-
-    "ovpnConfig",
-
-    "unlockUserAndPass",
-
-    "unlockUserAndPass2",
-
-    "name",
-
-    "protection",
-
-    "version",
-
-    "connectionMode",
-
-    "dnsResolver",
-
-    "slowdnsServer",
-
-    "slowdnsPublickey",
-
-    "v2rayConfig",
-
-    "cloudconfig",
-
-    "psiphon",
-
-    "blockArea",
-
-    "blockedByHwid",
-
-    "blockedByPassword",
-
-    "blockedByRoot",
-
-    "mobileDataAndLockProvider",
-
-    "extraSniffer",
-
-    "slowdnsEnabled",
-
-    "v2rayEnabled",
-
-    "psiphon2"
-
-  ];
-
-
-  const rendered =
-    new Set([
-      "ssh",
-      "sshField"
-    ]);
-
-
-  /* ======================================
-     RENDER PRIORITAS
-  ====================================== */
-
-  for (
-    const key of priorityKeys
-  ) {
-
-    if (!(key in config)) {
-      continue;
-    }
-
-    if (rendered.has(key)) {
-      continue;
-    }
-
-    const value =
-      config[key];
-
-    if (isEmptyValue(value)) {
-      continue;
-    }
-
-    resultBox.appendChild(
-      createField(
-        key,
-        prettyName(key),
-        formatValue(value)
-      )
-    );
-
-    rendered.add(key);
-
-    count++;
-  }
-
-
-  /* ======================================
-     RENDER FIELD LAINNYA
-  ====================================== */
-
-  Object.keys(config).forEach((key) => {
-
-    if (rendered.has(key)) {
-      return;
-    }
-
-    const value =
-      config[key];
-
-    if (isEmptyValue(value)) {
-      return;
-    }
-
-    /*
-     * Jangan tampilkan field internal
-     * yang biasanya tidak berguna untuk user.
-     */
-
-    if (
-      key === "configData" ||
-      key === "configSalt" ||
-      key === "configAesKey" ||
-      key === "configIdentifier" ||
-      key === "lockModesHash" ||
-      key === "configHwid" ||
-      key === "configTimestamp" ||
-      key === "configExpiryTimestamp"
-    ) {
-
-      return;
-    }
-
-    resultBox.appendChild(
-      createField(
-        key,
-        prettyName(key),
-        formatValue(value)
-      )
-    );
-
-    rendered.add(key);
-
-    count++;
-  });
-
-
-  /* ======================================
-     PROTECTIONS
-  ====================================== */
-
-  if (
-    data.protections &&
-    typeof data.protections === "object"
-  ) {
-
-    const protectionTitle =
-      document.createElement("div");
-
-    protectionTitle.className =
-      "protection-title";
-
-    protectionTitle.textContent =
-      "🛡️ PROTECTION";
-
-    resultBox.appendChild(
-      protectionTitle
-    );
-
-    Object.keys(
-      data.protections
-    ).forEach((key) => {
-
-      const value =
-        data.protections[key];
-
-      if (isEmptyValue(value)) {
-        return;
-      }
-
-      resultBox.appendChild(
-        createField(
-          key,
-          prettyName(key),
-          formatValue(value)
-        )
-      );
-
-      count++;
-    });
-  }
-
-
-  /* ======================================
-     EMPTY
-  ====================================== */
-
-  if (count === 0) {
-
-    const empty =
-      document.createElement("div");
-
-    empty.className =
-      "empty";
-
-    empty.textContent =
-      "⚠️ Tidak ada data config yang ditemukan.";
-
-    resultBox.appendChild(
-      empty
-    );
-  }
-
-
-  /* ======================================
-     SCROLL
-  ====================================== */
-
-  setTimeout(() => {
-
-    resultBox.scrollIntoView({
+    resultEl.scrollIntoView({
       behavior: "smooth",
       block: "start"
     });
 
-  }, 100);
-}
+  } catch (error) {
+    console.error(error);
 
+    resultEl.innerHTML = "";
 
-/* ========================================
-   GET SSH
-======================================== */
+    showStatus(
+      `❌ ${error.message || "Terjadi kesalahan"}`,
+      "error"
+    );
 
-function getSSH(config) {
-
-  let ssh =
-    config.sshField ||
-    config.ssh;
-
-  if (!ssh) {
-    return "";
+  } finally {
+    decryptBtn.disabled = false;
   }
+});
 
 
-  /* STRING */
+// ========================================
+// RENDER RESULT
+// ========================================
+function renderResult(data) {
+  let config = data;
 
-  if (
-    typeof ssh === "string"
-  ) {
-
-    return ssh.trim();
-  }
-
-
-  /* OBJECT */
-
-  if (
-    typeof ssh === "object"
-  ) {
-
-    const host =
-      ssh.host ||
-      ssh.hostname ||
-      "";
-
-    const port =
-      ssh.port ||
-      "";
-
-    const username =
-      ssh.username ||
-      ssh.user ||
-      "";
-
-    const password =
-      ssh.password ||
-      ssh.pass ||
-      "";
-
-    if (
-      !host &&
-      !port &&
-      !username &&
-      !password
-    ) {
-
-      return "";
+  // Kalau API mengirim result sebagai JSON string
+  if (typeof data?.result === "string") {
+    try {
+      config = JSON.parse(data.result);
+    } catch {
+      renderRawResult(data.result);
+      return;
     }
+  }
 
-    return (
-      `${host}:${port}` +
-      `@${username}:${password}`
+  // Kalau result berupa object
+  if (
+    data?.result &&
+    typeof data.result === "object"
+  ) {
+    config = data.result;
+  }
+
+  // Kalau API punya config
+  if (
+    data?.config &&
+    typeof data.config === "object"
+  ) {
+    config = data.config;
+  }
+
+  // Kalau masih string
+  if (typeof config === "string") {
+    renderRawResult(config);
+    return;
+  }
+
+  if (!config || typeof config !== "object") {
+    renderRawResult(String(config ?? ""));
+    return;
+  }
+
+  resultEl.innerHTML = `
+    <div class="result-card">
+      <div class="result-title">
+        📋 HASIL CONFIG
+      </div>
+
+      <div id="configFields"></div>
+    </div>
+  `;
+
+  const fieldsEl = document.getElementById("configFields");
+
+  if (!fieldsEl) return;
+
+  // ========================================
+  // SSH
+  // ========================================
+  const ssh = getSSH(config);
+
+  if (ssh) {
+    fieldsEl.appendChild(
+      createField(
+        "ssh",
+        "🔐 SSH",
+        ssh,
+        true
+      )
     );
   }
 
-  return "";
+  // ========================================
+  // FIELD PRIORITAS
+  // ========================================
+  const priority = [
+    ["host", "🌐 Host"],
+    ["server", "🖥️ Server"],
+    ["port", "🔌 Port"],
+    ["username", "👤 Username"],
+    ["user", "👤 Username"],
+    ["password", "🔑 Password"],
+    ["sni", "🎯 SNI"],
+    ["sniHost", "🎯 SNI Host"],
+    ["remoteProxy", "🔀 Remote Proxy"],
+    ["remote_proxy", "🔀 Remote Proxy"],
+    ["proxy", "🔀 Proxy"],
+    ["payload", "📦 Payload"],
+    ["dns", "🌍 DNS"],
+    ["dnsProfile", "🌍 DNS Profile"],
+    ["localPort", "📍 Local Port"],
+    ["defaultRoute", "🛣️ Default Route"],
+    ["tunnel", "🚇 Tunnel"],
+    ["method", "⚙️ Method"],
+    ["userAgent", "🧭 User Agent"]
+  ];
+
+  const used = new Set();
+
+  priority.forEach(([key, title]) => {
+    const actualKey = findKey(config, key);
+
+    if (!actualKey) return;
+
+    const value = config[actualKey];
+
+    if (isEmptyValue(value)) return;
+
+    // Hindari username/password tampil dua kali
+    if (
+      actualKey.toLowerCase() === "user" &&
+      findKey(config, "username")
+    ) {
+      return;
+    }
+
+    used.add(actualKey);
+
+    fieldsEl.appendChild(
+      createField(
+        actualKey,
+        title,
+        value
+      )
+    );
+  });
+
+  // ========================================
+  // FIELD LAIN
+  // ========================================
+  Object.entries(config).forEach(
+    ([key, value]) => {
+      if (used.has(key)) return;
+
+      if (isInternalKey(key)) return;
+
+      if (isEmptyValue(value)) return;
+
+      fieldsEl.appendChild(
+        createField(
+          key,
+          prettyName(key),
+          value
+        )
+      );
+    }
+  );
+
+  // ========================================
+  // PROTECTIONS
+  // ========================================
+  renderProtection(config, fieldsEl);
+
+  if (!fieldsEl.children.length) {
+    renderRawResult(data);
+  }
 }
 
 
-/* ========================================
-   CREATE FIELD
-======================================== */
-
+// ========================================
+// CREATE FIELD CARD
+// ========================================
 function createField(
   key,
   title,
   value,
   isSSH = false
 ) {
+  const item = document.createElement("div");
 
-  const box =
-    document.createElement("div");
+  item.className = "config-item";
 
-  box.className =
-    "config-item";
+  const formatted = formatValue(value);
 
-  if (isSSH) {
-    box.classList.add("ssh-item");
-  }
+  item.innerHTML = `
+    <div class="config-header">
+      <div class="config-name">
+        ${escapeHTML(title)}
+      </div>
 
+      <button
+        type="button"
+        class="config-copy"
+        data-copy-key="${escapeHTML(key)}"
+      >
+        COPY
+      </button>
+    </div>
 
-  /* HEADER */
-
-  const header =
-    document.createElement("div");
-
-  header.className =
-    "config-header";
-
-
-  /* TITLE */
-
-  const fieldTitle =
-    document.createElement("div");
-
-  fieldTitle.className =
-    "config-name";
-
-  fieldTitle.textContent =
-    title;
-
-
-  /* COPY */
+    <div class="config-value ${isSSH || key.toLowerCase().includes("payload") ? "payload" : ""}">
+      ${escapeHTML(formatted)}
+    </div>
+  `;
 
   const copyBtn =
-    document.createElement("button");
+    item.querySelector(".config-copy");
 
-  copyBtn.type =
-    "button";
+  copyBtn?.addEventListener("click", async () => {
+    const ok = await copyText(formatted);
 
-  copyBtn.className =
-    "config-copy";
+    if (ok) {
+      copyBtn.textContent = "COPIED";
 
-  copyBtn.textContent =
-    "COPY";
-
-  copyBtn.addEventListener(
-    "click",
-    async () => {
-
-      await copyText(
-        value,
-        copyBtn
-      );
-
+      setTimeout(() => {
+        copyBtn.textContent = "COPY";
+      }, 1200);
     }
-  );
+  });
+
+  return item;
+}
 
 
-  header.appendChild(
-    fieldTitle
-  );
+// ========================================
+// SSH FORMAT
+// ========================================
+function getSSH(config) {
+  const host =
+    getValue(config, [
+      "host",
+      "server",
+      "sshHost",
+      "ssh_server"
+    ]);
 
-  header.appendChild(
-    copyBtn
-  );
+  const port =
+    getValue(config, [
+      "port",
+      "sshPort",
+      "ssh_port"
+    ]);
 
+  const username =
+    getValue(config, [
+      "username",
+      "user",
+      "sshUsername",
+      "ssh_username"
+    ]);
 
-  /* VALUE */
-
-  const valueBox =
-    document.createElement("div");
-
-  valueBox.className =
-    "config-value";
+  const password =
+    getValue(config, [
+      "password",
+      "pass",
+      "sshPassword",
+      "ssh_password"
+    ]);
 
   if (
-    key === "payload" ||
-    key === "v2rayConfig" ||
-    key === "ovpnConfig"
+    isEmptyValue(host) &&
+    isEmptyValue(port) &&
+    isEmptyValue(username) &&
+    isEmptyValue(password)
   ) {
-
-    valueBox.classList.add(
-      "payload"
-    );
+    return null;
   }
 
-  valueBox.textContent =
-    value;
+  const lines = [];
 
+  if (!isEmptyValue(host)) {
+    lines.push(`Host     : ${formatValue(host)}`);
+  }
 
-  box.appendChild(
-    header
-  );
+  if (!isEmptyValue(port)) {
+    lines.push(`Port     : ${formatValue(port)}`);
+  }
 
-  box.appendChild(
-    valueBox
-  );
+  if (!isEmptyValue(username)) {
+    lines.push(`Username : ${formatValue(username)}`);
+  }
 
-  return box;
+  if (!isEmptyValue(password)) {
+    lines.push(`Password : ${formatValue(password)}`);
+  }
+
+  return lines.join("\n");
 }
 
 
-/* ========================================
-   RAW RESULT
-======================================== */
+// ========================================
+// PROTECTION
+// ========================================
+function renderProtection(config, parent) {
+  const lockModes =
+    config.lockModes ||
+    config.lock_modes;
 
+  if (
+    !Array.isArray(lockModes) ||
+    !lockModes.length
+  ) {
+    return;
+  }
+
+  parent.appendChild(
+    createField(
+      "lockModes",
+      "🔒 Protection",
+      lockModes.join("\n")
+    )
+  );
+}
+
+
+// ========================================
+// RAW RESULT
+// ========================================
 function renderRawResult(value) {
+  resultEl.innerHTML = `
+    <div class="result-card">
+      <div class="result-title">
+        📋 HASIL CONFIG
+      </div>
 
-  resultBox.innerHTML = "";
+      <div class="config-item">
+        <div class="config-header">
+          <div class="config-name">
+            📄 Result
+          </div>
 
-  const title =
-    document.createElement("h2");
+          <button
+            type="button"
+            class="config-copy"
+            id="copyRaw"
+          >
+            COPY
+          </button>
+        </div>
 
-  title.className =
-    "result-title";
+        <div class="config-value payload">
+          ${escapeHTML(formatValue(value))}
+        </div>
+      </div>
+    </div>
+  `;
 
-  title.textContent =
-    "📋 HASIL CONFIG";
+  document
+    .getElementById("copyRaw")
+    ?.addEventListener("click", async e => {
+      const ok = await copyText(
+        formatValue(value)
+      );
 
-  resultBox.appendChild(
-    title
-  );
+      if (ok) {
+        e.target.textContent = "COPIED";
 
-
-  const box =
-    document.createElement("div");
-
-  box.className =
-    "config-item";
-
-
-  const header =
-    document.createElement("div");
-
-  header.className =
-    "config-header";
-
-
-  const name =
-    document.createElement("div");
-
-  name.className =
-    "config-name";
-
-  name.textContent =
-    "📄 RESULT";
-
-
-  const copy =
-    document.createElement("button");
-
-  copy.className =
-    "config-copy";
-
-  copy.type =
-    "button";
-
-  copy.textContent =
-    "COPY";
-
-  copy.onclick = () =>
-    copyText(
-      value,
-      copy
-    );
-
-
-  header.appendChild(name);
-  header.appendChild(copy);
-
-
-  const content =
-    document.createElement("div");
-
-  content.className =
-    "config-value payload";
-
-  content.textContent =
-    value;
-
-
-  box.appendChild(header);
-  box.appendChild(content);
-
-  resultBox.appendChild(box);
+        setTimeout(() => {
+          e.target.textContent = "COPY";
+        }, 1200);
+      }
+    });
 }
 
 
-/* ========================================
-   EMPTY CHECK
-======================================== */
+// ========================================
+// FIND KEY
+// ========================================
+function findKey(obj, wanted) {
+  if (!obj || typeof obj !== "object") {
+    return null;
+  }
 
+  const target = wanted.toLowerCase();
+
+  const key = Object.keys(obj).find(
+    k => k.toLowerCase() === target
+  );
+
+  return key || null;
+}
+
+
+// ========================================
+// GET VALUE
+// ========================================
+function getValue(obj, keys) {
+  for (const key of keys) {
+    const actual = findKey(obj, key);
+
+    if (actual) {
+      const value = obj[actual];
+
+      if (!isEmptyValue(value)) {
+        return value;
+      }
+    }
+  }
+
+  return null;
+}
+
+
+// ========================================
+// INTERNAL CRYPTO FIELD
+// ========================================
+function isInternalKey(key) {
+  const k = key.toLowerCase();
+
+  const blocked = [
+    "configaeskey",
+    "configidentifier",
+    "configsalt",
+    "configtimestamp",
+    "configexpirytimestamp",
+    "lockmodeshash",
+    "confighwid",
+    "configlockmobileoperatorid",
+    "v2rrawjson",
+    "overwriteserverdata",
+    "ehi",
+    "crypto",
+    "cipher",
+    "nonce",
+    "argon",
+    "masterkey",
+    "aeskey"
+  ];
+
+  return blocked.some(
+    item => k.includes(item)
+  );
+}
+
+
+// ========================================
+// EMPTY CHECK
+// ========================================
 function isEmptyValue(value) {
-
   if (
     value === null ||
     value === undefined
@@ -807,286 +627,182 @@ function isEmptyValue(value) {
     return true;
   }
 
-  if (
-    typeof value === "string" &&
-    value.trim() === ""
-  ) {
-    return true;
+  if (typeof value === "string") {
+    return value.trim() === "";
+  }
+
+  if (Array.isArray(value)) {
+    return value.length === 0;
   }
 
   return false;
 }
 
 
-/* ========================================
-   COPY
-======================================== */
+// ========================================
+// FORMAT VALUE
+// ========================================
+function formatValue(value) {
+  if (typeof value === "string") {
+    return value;
+  }
 
-async function copyText(
-  text,
-  button
-) {
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+
+  if (
+    typeof value === "number" ||
+    typeof value === "bigint"
+  ) {
+    return String(value);
+  }
 
   try {
+    return JSON.stringify(
+      value,
+      null,
+      2
+    );
+  } catch {
+    return String(value);
+  }
+}
 
-    const value =
-      String(text);
+
+// ========================================
+// PRETTY NAME
+// ========================================
+function prettyName(key) {
+  return key
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, char =>
+      char.toUpperCase()
+    );
+}
 
 
-    if (
-      navigator.clipboard &&
-      window.isSecureContext
-    ) {
+// ========================================
+// ESCAPE HTML
+// ========================================
+function escapeHTML(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
-      await navigator.clipboard.writeText(
-        value
-      );
 
-    } else {
+// ========================================
+// COPY
+// ========================================
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(
+      String(text)
+    );
 
+    return true;
+  } catch {
+    try {
       const textarea =
-        document.createElement(
-          "textarea"
-        );
+        document.createElement("textarea");
 
-      textarea.value =
-        value;
+      textarea.value = String(text);
 
-      textarea.style.position =
-        "fixed";
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
 
-      textarea.style.left =
-        "-9999px";
-
-      textarea.style.top =
-        "0";
-
-      document.body.appendChild(
-        textarea
-      );
+      document.body.appendChild(textarea);
 
       textarea.focus();
       textarea.select();
 
-      document.execCommand(
-        "copy"
-      );
+      const success =
+        document.execCommand("copy");
 
       textarea.remove();
+
+      return success;
+    } catch {
+      return false;
     }
+  }
+}
 
 
-    const oldText =
-      button.textContent;
+// ========================================
+// STATUS
+// ========================================
+function showStatus(message, type = "") {
+  if (!statusEl) return;
 
-    button.textContent =
-      "COPIED ✓";
+  statusEl.className =
+    `status ${type}`;
 
-    button.classList.add(
-      "copied"
+  statusEl.textContent = message;
+}
+
+
+// ========================================
+// SUCCESS SOUND
+// "TING" SATU KALI
+// ========================================
+function successSound() {
+  try {
+    const AudioContext =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (!AudioContext) return;
+
+    const audioCtx =
+      new AudioContext();
+
+    const osc =
+      audioCtx.createOscillator();
+
+    const gain =
+      audioCtx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.value = 900;
+
+    gain.gain.setValueAtTime(
+      0.001,
+      audioCtx.currentTime
     );
 
+    gain.gain.exponentialRampToValueAtTime(
+      0.18,
+      audioCtx.currentTime + 0.02
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+      0.001,
+      audioCtx.currentTime + 0.25
+    );
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+
+    osc.stop(
+      audioCtx.currentTime + 0.25
+    );
 
     setTimeout(() => {
-
-      button.textContent =
-        oldText;
-
-      button.classList.remove(
-        "copied"
-      );
-
-    }, 1500);
+      audioCtx.close().catch(() => {});
+    }, 500);
 
   } catch (error) {
-
-    console.error(
-      "Copy error:",
+    console.warn(
+      "Audio tidak tersedia:",
       error
     );
-
-    button.textContent =
-      "FAILED";
-
-    setTimeout(() => {
-
-      button.textContent =
-        "COPY";
-
-    }, 1500);
   }
-}
-
-
-/* ========================================
-   PRETTY NAME
-======================================== */
-
-function prettyName(key) {
-
-  const names = {
-
-    payload:
-      "📡 PAYLOAD",
-
-    proxy:
-      "🌐 PROXY",
-
-    sni:
-      "🔗 SNI",
-
-    notes:
-      "📝 NOTES",
-
-    note:
-      "📝 NOTE",
-
-    ovpnConfig:
-      "📄 OVPN CONFIG",
-
-    ovpnUserAndPass:
-      "🔐 OVPN USER & PASSWORD",
-
-    unlockUserAndPass:
-      "🔓 UNLOCK USER & PASSWORD",
-
-    unlockUserAndPass2:
-      "🔓 UNLOCK USER & PASSWORD 2",
-
-    name:
-      "🏷️ NAME",
-
-    expiryTime:
-      "⏰ EXPIRY TIME",
-
-    version:
-      "📦 VERSION",
-
-    connectionMode:
-      "🔌 CONNECTION MODE",
-
-    dnsResolver:
-      "🌍 DNS RESOLVER",
-
-    slowdnsServer:
-      "🐌 SLOWDNS SERVER",
-
-    slowdnsPublickey:
-      "🔑 SLOWDNS PUBLIC KEY",
-
-    v2rayConfig:
-      "🚀 V2RAY CONFIG",
-
-    cloudconfig:
-      "☁️ CLOUD CONFIG",
-
-    psiphon:
-      "🛡️ PSIPHON",
-
-    blockArea:
-      "📍 BLOCK AREA",
-
-    blockedByHwid:
-      "🔒 BLOCKED BY HWID",
-
-    blockedByPassword:
-      "🔒 BLOCKED BY PASSWORD",
-
-    blockedByRoot:
-      "🔒 BLOCKED BY ROOT",
-
-    lockAllConfig:
-      "🔒 LOCK ALL CONFIG",
-
-    mobileDataAndLockProvider:
-      "📱 MOBILE DATA & LOCK PROVIDER",
-
-    unknown14:
-      "❓ UNKNOWN 14",
-
-    unknown22:
-      "❓ UNKNOWN 22",
-
-    extraSniffer:
-      "🔍 EXTRA SNIFFER",
-
-    slowdnsEnabled:
-      "🐌 SLOWDNS ENABLED",
-
-    v2rayEnabled:
-      "🚀 V2RAY ENABLED",
-
-    psiphon2:
-      "🛡️ PSIPHON 2",
-
-    protection:
-      "🛡️ PROTECTION"
-
-  };
-
-
-  if (names[key]) {
-    return names[key];
-  }
-
-
-  return key
-    .replace(
-      /([A-Z])/g,
-      " $1"
-    )
-    .replace(
-      /^./,
-      (char) =>
-        char.toUpperCase()
-    );
-}
-
-
-/* ========================================
-   FORMAT VALUE
-======================================== */
-
-function formatValue(value) {
-
-  if (
-    typeof value === "object" &&
-    value !== null
-  ) {
-
-    try {
-
-      return JSON.stringify(
-        value,
-        null,
-        2
-      );
-
-    } catch {
-
-      return String(value);
-    }
-  }
-
-  return String(value);
-}
-
-
-/* ========================================
-   STATUS
-======================================== */
-
-function showStatus(
-  message,
-  type = ""
-) {
-
-  statusBox.textContent =
-    message;
-
-  statusBox.className =
-    "status " + type;
-
-  statusBox.style.display =
-    "block";
 }
