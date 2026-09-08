@@ -8,768 +8,1085 @@ const resultBox = document.getElementById("result");
 let selectedFile = null;
 
 /* ========================================
-FILE SELECT
+   FILE SELECT
 ======================================== */
 
 fileInput.addEventListener("change", () => {
-const file = fileInput.files[0];
+  const file = fileInput.files[0];
 
-if (!file) return;
+  if (!file) return;
 
-setFile(file);
+  setFile(file);
 });
 
+
 /* ========================================
-DRAG & DROP
+   DRAG & DROP
 ======================================== */
 
 uploadBox.addEventListener("dragover", (e) => {
-e.preventDefault();
-
-uploadBox.classList.add("dragover");
+  e.preventDefault();
+  uploadBox.classList.add("dragover");
 });
 
 uploadBox.addEventListener("dragleave", () => {
-uploadBox.classList.remove("dragover");
+  uploadBox.classList.remove("dragover");
 });
 
 uploadBox.addEventListener("drop", (e) => {
-e.preventDefault();
+  e.preventDefault();
 
-uploadBox.classList.remove("dragover");
+  uploadBox.classList.remove("dragover");
 
-const file = e.dataTransfer.files[0];
+  const file = e.dataTransfer.files[0];
 
-if (file) {
-setFile(file);
-}
+  if (file) {
+    setFile(file);
+  }
 });
 
+
 /* ========================================
-SET FILE
+   SET FILE
 ======================================== */
 
 function setFile(file) {
 
-if (!file.name.toLowerCase().endsWith(".hc")) {
+  const name = file.name.toLowerCase();
 
-selectedFile = null;
+  if (!name.endsWith(".hc")) {
 
-decryptBtn.disabled = true;
+    selectedFile = null;
 
-fileName.textContent = "";
+    decryptBtn.disabled = true;
 
-fileName.style.display = "none";
+    fileName.textContent = "";
+    fileName.style.display = "none";
 
-showStatus(
-  "❌ Hanya file .HC yang diperbolehkan",
-  "error"
-);
+    showStatus(
+      "❌ Hanya file .HC yang diperbolehkan",
+      "error"
+    );
 
-return;
+    return;
+  }
 
+  selectedFile = file;
+
+  fileName.textContent = "📄 " + file.name;
+  fileName.style.display = "block";
+
+  decryptBtn.disabled = false;
+
+  showStatus(
+    "✅ File siap dibongkar",
+    "success"
+  );
 }
 
-selectedFile = file;
-
-fileName.textContent =
-"📄 " + file.name;
-
-fileName.style.display = "block";
-
-decryptBtn.disabled = false;
-
-showStatus(
-"✅ File siap dibongkar",
-"success"
-);
-}
 
 /* ========================================
-DECRYPT BUTTON
+   DECRYPT
 ======================================== */
 
 decryptBtn.addEventListener("click", async () => {
 
-if (!selectedFile) {
-showStatus(
-"❌ Pilih file HC terlebih dahulu",
-"error"
-);
+  if (!selectedFile) {
 
-return;
+    showStatus(
+      "❌ Pilih file HC terlebih dahulu",
+      "error"
+    );
 
-}
-
-decryptBtn.disabled = true;
-
-decryptBtn.innerHTML =
-"⏳ MEMPROSES...";
-
-resultBox.innerHTML = "";
-
-showStatus(
-"🔄 Sedang membongkar config...",
-"loading"
-);
-
-try {
-
-const formData = new FormData();
-
-formData.append(
-  "file",
-  selectedFile
-);
-
-const response = await fetch(
-  "/api/decrypt",
-  {
-    method: "POST",
-    body: formData
+    return;
   }
-);
 
-const text = await response.text();
+  decryptBtn.disabled = true;
 
-let data;
+  decryptBtn.innerHTML =
+    "⏳ MEMPROSES...";
 
-try {
+  resultBox.innerHTML = "";
 
-  data = JSON.parse(text);
-
-} catch (e) {
-
-  console.error(
-    "Response server:",
-    text
+  showStatus(
+    "🔄 Sedang membongkar config...",
+    "loading"
   );
 
-  throw new Error(
-    text ||
-    "Server tidak mengembalikan JSON"
-  );
-}
+  try {
 
-if (!response.ok || !data.success) {
+    const formData = new FormData();
 
-  throw new Error(
-    data.error ||
-    "Gagal membongkar config"
-  );
-}
+    formData.append(
+      "file",
+      selectedFile
+    );
 
-renderResult(data);
+    const response = await fetch(
+      "/api/decrypt",
+      {
+        method: "POST",
+        body: formData
+      }
+    );
 
-showStatus(
-  "✅ Config berhasil dibongkar",
-  "success"
-);
+    const text = await response.text();
 
-} catch (error) {
+    let data;
 
-console.error(error);
+    try {
 
-showStatus(
-  "❌ " + error.message,
-  "error"
-);
+      data = JSON.parse(text);
 
-} finally {
+    } catch {
 
-decryptBtn.disabled = false;
+      console.error(
+        "Response server:",
+        text
+      );
 
-decryptBtn.innerHTML =
-  "🔓 BONGKAR CONFIG";
+      throw new Error(
+        "Server tidak mengembalikan JSON"
+      );
+    }
 
-}
+    if (!response.ok || !data.success) {
+
+      throw new Error(
+        data.error ||
+        "Gagal membongkar config"
+      );
+    }
+
+    renderResult(data);
+
+    showStatus(
+      "✅ Config berhasil dibongkar",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    showStatus(
+      "❌ " + error.message,
+      "error"
+    );
+
+  } finally {
+
+    decryptBtn.disabled = false;
+
+    decryptBtn.innerHTML =
+      "🔓 BONGKAR CONFIG";
+  }
 
 });
 
+
 /* ========================================
-RENDER RESULT
+   RENDER RESULT
 ======================================== */
 
 function renderResult(data) {
 
-resultBox.innerHTML = "";
+  resultBox.innerHTML = "";
 
-const config =
-data.config || data.result || data;
+  /*
+   * API biasanya mengirim:
+   *
+   * data.result = JSON STRING
+   *
+   * Contoh:
+   * data.result = '{"ssh":"...","payload":"..."}'
+   *
+   * Jadi harus JSON.parse().
+   */
 
-const title =
-document.createElement("div");
+  let config = data.result || data.config || data;
 
-title.className =
-"result-title";
+  if (typeof config === "string") {
 
-title.textContent =
-"📋 HASIL CONFIG";
+    try {
 
-resultBox.appendChild(title);
+      config = JSON.parse(config);
 
-/* ======================================
-SSH
-====================================== */
+    } catch {
 
-let sshText = "";
+      /*
+       * Kalau bukan JSON,
+       * tampilkan sebagai raw result.
+       */
 
-if (
-config.sshField &&
-typeof config.sshField === "object"
-) {
+      renderRawResult(config);
 
-const ssh =
-  config.sshField;
-
-const host =
-  ssh.host ||
-  ssh.hostname ||
-  "";
-
-const port =
-  ssh.port ||
-  "";
-
-const username =
-  ssh.username ||
-  ssh.user ||
-  "";
-
-const password =
-  ssh.password ||
-  ssh.pass ||
-  "";
-
-if (
-  host ||
-  port ||
-  username ||
-  password
-) {
-
-  sshText =
-    `${host}:${port}@${username}:${password}`;
-}
-
-} else if (
-typeof config.sshField === "string"
-) {
-
-sshText =
-  config.sshField;
-
-} else if (
-typeof config.ssh === "string"
-) {
-
-sshText =
-  config.ssh;
-
-} else if (
-config.ssh &&
-typeof config.ssh === "object"
-) {
-
-const ssh =
-  config.ssh;
-
-sshText =
-  `${ssh.host || ssh.hostname || ""}:` +
-  `${ssh.port || ""}@` +
-  `${ssh.username || ssh.user || ""}:` +
-  `${ssh.password || ssh.pass || ""}`;
-
-}
-
-if (sshText) {
-
-const sshBox =
-  createField(
-    "ssh",
-    "🔑 SSH",
-    sshText,
-    true
-  );
-
-resultBox.appendChild(sshBox);
-
-}
-
-/* ======================================
-CONFIG FIELDS
-====================================== */
-
-const skipKeys = [
-"ssh",
-"sshField"
-];
-
-let fieldCount = 0;
-
-Object.keys(config).forEach((key) => {
-
-if (skipKeys.includes(key)) {
-  return;
-}
-
-const value =
-  config[key];
-
-/*
-  Jangan tampilkan field kosong
-  supaya hasil lebih bersih.
-*/
-
-if (
-  value === null ||
-  value === undefined ||
-  value === ""
-) {
-  return;
-}
-
-fieldCount++;
-
-const field =
-  createField(
-    key,
-    prettyName(key),
-    formatValue(value),
-    false
-  );
-
-resultBox.appendChild(field);
-
-});
-
-/* ======================================
-PROTECTION
-====================================== */
-
-if (
-data.protections &&
-typeof data.protections === "object"
-) {
-
-const protectionTitle =
-  document.createElement("div");
-
-protectionTitle.className =
-  "protection-title";
-
-protectionTitle.textContent =
-  "🛡️ PROTECTION";
-
-resultBox.appendChild(
-  protectionTitle
-);
-
-
-Object.keys(
-  data.protections
-).forEach((key) => {
-
-  const value =
-    data.protections[key];
+      return;
+    }
+  }
 
   if (
-    value === null ||
-    value === undefined ||
-    value === ""
+    !config ||
+    typeof config !== "object"
   ) {
+
+    renderRawResult(
+      String(config || "")
+    );
+
     return;
   }
 
-  const field =
-    createField(
-      key,
-      prettyName(key),
-      formatValue(value),
-      false
+
+  /* ======================================
+     TITLE
+  ====================================== */
+
+  const title =
+    document.createElement("h2");
+
+  title.className =
+    "result-title";
+
+  title.textContent =
+    "📋 HASIL CONFIG";
+
+  resultBox.appendChild(title);
+
+
+  let count = 0;
+
+
+  /* ======================================
+     SSH
+  ====================================== */
+
+  const sshText =
+    getSSH(config);
+
+  if (sshText) {
+
+    resultBox.appendChild(
+      createField(
+        "ssh",
+        "🔑 SSH",
+        sshText,
+        true
+      )
     );
 
-  resultBox.appendChild(field);
-});
+    count++;
+  }
 
+
+  /* ======================================
+     FIELD PRIORITAS
+  ====================================== */
+
+  const priorityKeys = [
+
+    "payload",
+
+    "proxy",
+
+    "sni",
+
+    "expiryTime",
+
+    "lockAllConfig",
+
+    "notes",
+
+    "note",
+
+    "ovpnUserAndPass",
+
+    "ovpnConfig",
+
+    "unlockUserAndPass",
+
+    "unlockUserAndPass2",
+
+    "name",
+
+    "protection",
+
+    "version",
+
+    "connectionMode",
+
+    "dnsResolver",
+
+    "slowdnsServer",
+
+    "slowdnsPublickey",
+
+    "v2rayConfig",
+
+    "cloudconfig",
+
+    "psiphon",
+
+    "blockArea",
+
+    "blockedByHwid",
+
+    "blockedByPassword",
+
+    "blockedByRoot",
+
+    "mobileDataAndLockProvider",
+
+    "extraSniffer",
+
+    "slowdnsEnabled",
+
+    "v2rayEnabled",
+
+    "psiphon2"
+
+  ];
+
+
+  const rendered =
+    new Set([
+      "ssh",
+      "sshField"
+    ]);
+
+
+  /* ======================================
+     RENDER PRIORITAS
+  ====================================== */
+
+  for (
+    const key of priorityKeys
+  ) {
+
+    if (!(key in config)) {
+      continue;
+    }
+
+    if (rendered.has(key)) {
+      continue;
+    }
+
+    const value =
+      config[key];
+
+    if (isEmptyValue(value)) {
+      continue;
+    }
+
+    resultBox.appendChild(
+      createField(
+        key,
+        prettyName(key),
+        formatValue(value)
+      )
+    );
+
+    rendered.add(key);
+
+    count++;
+  }
+
+
+  /* ======================================
+     RENDER FIELD LAINNYA
+  ====================================== */
+
+  Object.keys(config).forEach((key) => {
+
+    if (rendered.has(key)) {
+      return;
+    }
+
+    const value =
+      config[key];
+
+    if (isEmptyValue(value)) {
+      return;
+    }
+
+    /*
+     * Jangan tampilkan field internal
+     * yang biasanya tidak berguna untuk user.
+     */
+
+    if (
+      key === "configData" ||
+      key === "configSalt" ||
+      key === "configAesKey" ||
+      key === "configIdentifier" ||
+      key === "lockModesHash" ||
+      key === "configHwid" ||
+      key === "configTimestamp" ||
+      key === "configExpiryTimestamp"
+    ) {
+
+      return;
+    }
+
+    resultBox.appendChild(
+      createField(
+        key,
+        prettyName(key),
+        formatValue(value)
+      )
+    );
+
+    rendered.add(key);
+
+    count++;
+  });
+
+
+  /* ======================================
+     PROTECTIONS
+  ====================================== */
+
+  if (
+    data.protections &&
+    typeof data.protections === "object"
+  ) {
+
+    const protectionTitle =
+      document.createElement("div");
+
+    protectionTitle.className =
+      "protection-title";
+
+    protectionTitle.textContent =
+      "🛡️ PROTECTION";
+
+    resultBox.appendChild(
+      protectionTitle
+    );
+
+    Object.keys(
+      data.protections
+    ).forEach((key) => {
+
+      const value =
+        data.protections[key];
+
+      if (isEmptyValue(value)) {
+        return;
+      }
+
+      resultBox.appendChild(
+        createField(
+          key,
+          prettyName(key),
+          formatValue(value)
+        )
+      );
+
+      count++;
+    });
+  }
+
+
+  /* ======================================
+     EMPTY
+  ====================================== */
+
+  if (count === 0) {
+
+    const empty =
+      document.createElement("div");
+
+    empty.className =
+      "empty";
+
+    empty.textContent =
+      "⚠️ Tidak ada data config yang ditemukan.";
+
+    resultBox.appendChild(
+      empty
+    );
+  }
+
+
+  /* ======================================
+     SCROLL
+  ====================================== */
+
+  setTimeout(() => {
+
+    resultBox.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+
+  }, 100);
 }
 
-/* ======================================
-EMPTY
-====================================== */
-
-if (
-!sshText &&
-fieldCount === 0 &&
-!data.protections
-) {
-
-const empty =
-  document.createElement("div");
-
-empty.className =
-  "empty";
-
-empty.textContent =
-  "⚠️ Tidak ada data yang berhasil ditemukan.";
-
-resultBox.appendChild(empty);
-
-}
-}
 
 /* ========================================
-CREATE FIELD
+   GET SSH
+======================================== */
+
+function getSSH(config) {
+
+  let ssh =
+    config.sshField ||
+    config.ssh;
+
+  if (!ssh) {
+    return "";
+  }
+
+
+  /* STRING */
+
+  if (
+    typeof ssh === "string"
+  ) {
+
+    return ssh.trim();
+  }
+
+
+  /* OBJECT */
+
+  if (
+    typeof ssh === "object"
+  ) {
+
+    const host =
+      ssh.host ||
+      ssh.hostname ||
+      "";
+
+    const port =
+      ssh.port ||
+      "";
+
+    const username =
+      ssh.username ||
+      ssh.user ||
+      "";
+
+    const password =
+      ssh.password ||
+      ssh.pass ||
+      "";
+
+    if (
+      !host &&
+      !port &&
+      !username &&
+      !password
+    ) {
+
+      return "";
+    }
+
+    return (
+      `${host}:${port}` +
+      `@${username}:${password}`
+    );
+  }
+
+  return "";
+}
+
+
+/* ========================================
+   CREATE FIELD
 ======================================== */
 
 function createField(
-key,
-title,
-value,
-isSSH = false
+  key,
+  title,
+  value,
+  isSSH = false
 ) {
 
-const box =
-document.createElement("div");
+  const box =
+    document.createElement("div");
 
-box.className =
-isSSH
-? "ssh-box"
-: "field";
+  box.className =
+    "config-item";
 
-const header =
-document.createElement("div");
+  if (isSSH) {
+    box.classList.add("ssh-item");
+  }
 
-header.className =
-isSSH
-? "ssh-header"
-: "field-header";
 
-const fieldTitle =
-document.createElement("div");
+  /* HEADER */
 
-fieldTitle.className =
-isSSH
-? "ssh-title"
-: "field-title";
+  const header =
+    document.createElement("div");
 
-fieldTitle.textContent =
-title;
+  header.className =
+    "config-header";
 
-const copyBtn =
-document.createElement("button");
 
-copyBtn.type =
-"button";
+  /* TITLE */
 
-copyBtn.className =
-"copy-btn";
+  const fieldTitle =
+    document.createElement("div");
 
-copyBtn.textContent =
-"COPY";
+  fieldTitle.className =
+    "config-name";
 
-copyBtn.addEventListener(
-"click",
-async () => {
+  fieldTitle.textContent =
+    title;
 
-  await copyText(
-    value,
+
+  /* COPY */
+
+  const copyBtn =
+    document.createElement("button");
+
+  copyBtn.type =
+    "button";
+
+  copyBtn.className =
+    "config-copy";
+
+  copyBtn.textContent =
+    "COPY";
+
+  copyBtn.addEventListener(
+    "click",
+    async () => {
+
+      await copyText(
+        value,
+        copyBtn
+      );
+
+    }
+  );
+
+
+  header.appendChild(
+    fieldTitle
+  );
+
+  header.appendChild(
     copyBtn
   );
 
+
+  /* VALUE */
+
+  const valueBox =
+    document.createElement("div");
+
+  valueBox.className =
+    "config-value";
+
+  if (
+    key === "payload" ||
+    key === "v2rayConfig" ||
+    key === "ovpnConfig"
+  ) {
+
+    valueBox.classList.add(
+      "payload"
+    );
+  }
+
+  valueBox.textContent =
+    value;
+
+
+  box.appendChild(
+    header
+  );
+
+  box.appendChild(
+    valueBox
+  );
+
+  return box;
 }
 
-);
-
-header.appendChild(
-fieldTitle
-);
-
-header.appendChild(
-copyBtn
-);
-
-const valueBox =
-document.createElement("div");
-
-valueBox.className =
-isSSH
-? "ssh-value"
-: "field-value";
-
-valueBox.textContent =
-value;
-
-box.appendChild(
-header
-);
-
-box.appendChild(
-valueBox
-);
-
-return box;
-}
 
 /* ========================================
-COPY
+   RAW RESULT
+======================================== */
+
+function renderRawResult(value) {
+
+  resultBox.innerHTML = "";
+
+  const title =
+    document.createElement("h2");
+
+  title.className =
+    "result-title";
+
+  title.textContent =
+    "📋 HASIL CONFIG";
+
+  resultBox.appendChild(
+    title
+  );
+
+
+  const box =
+    document.createElement("div");
+
+  box.className =
+    "config-item";
+
+
+  const header =
+    document.createElement("div");
+
+  header.className =
+    "config-header";
+
+
+  const name =
+    document.createElement("div");
+
+  name.className =
+    "config-name";
+
+  name.textContent =
+    "📄 RESULT";
+
+
+  const copy =
+    document.createElement("button");
+
+  copy.className =
+    "config-copy";
+
+  copy.type =
+    "button";
+
+  copy.textContent =
+    "COPY";
+
+  copy.onclick = () =>
+    copyText(
+      value,
+      copy
+    );
+
+
+  header.appendChild(name);
+  header.appendChild(copy);
+
+
+  const content =
+    document.createElement("div");
+
+  content.className =
+    "config-value payload";
+
+  content.textContent =
+    value;
+
+
+  box.appendChild(header);
+  box.appendChild(content);
+
+  resultBox.appendChild(box);
+}
+
+
+/* ========================================
+   EMPTY CHECK
+======================================== */
+
+function isEmptyValue(value) {
+
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return true;
+  }
+
+  if (
+    typeof value === "string" &&
+    value.trim() === ""
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+
+/* ========================================
+   COPY
 ======================================== */
 
 async function copyText(
-text,
-button
+  text,
+  button
 ) {
 
-try {
+  try {
 
-if (
-  navigator.clipboard &&
-  window.isSecureContext
-) {
+    const value =
+      String(text);
 
-  await navigator.clipboard.writeText(
-    text
-  );
 
-} else {
+    if (
+      navigator.clipboard &&
+      window.isSecureContext
+    ) {
 
-  const textarea =
-    document.createElement(
-      "textarea"
+      await navigator.clipboard.writeText(
+        value
+      );
+
+    } else {
+
+      const textarea =
+        document.createElement(
+          "textarea"
+        );
+
+      textarea.value =
+        value;
+
+      textarea.style.position =
+        "fixed";
+
+      textarea.style.left =
+        "-9999px";
+
+      textarea.style.top =
+        "0";
+
+      document.body.appendChild(
+        textarea
+      );
+
+      textarea.focus();
+      textarea.select();
+
+      document.execCommand(
+        "copy"
+      );
+
+      textarea.remove();
+    }
+
+
+    const oldText =
+      button.textContent;
+
+    button.textContent =
+      "COPIED ✓";
+
+    button.classList.add(
+      "copied"
     );
 
-  textarea.value =
-    text;
 
-  textarea.style.position =
-    "fixed";
+    setTimeout(() => {
 
-  textarea.style.left =
-    "-9999px";
+      button.textContent =
+        oldText;
 
-  document.body.appendChild(
-    textarea
-  );
+      button.classList.remove(
+        "copied"
+      );
 
-  textarea.focus();
+    }, 1500);
 
-  textarea.select();
+  } catch (error) {
 
-  document.execCommand(
-    "copy"
-  );
+    console.error(
+      "Copy error:",
+      error
+    );
 
-  textarea.remove();
+    button.textContent =
+      "FAILED";
+
+    setTimeout(() => {
+
+      button.textContent =
+        "COPY";
+
+    }, 1500);
+  }
 }
 
-
-const oldText =
-  button.textContent;
-
-button.textContent =
-  "COPIED ✓";
-
-button.classList.add(
-  "copied"
-);
-
-
-setTimeout(() => {
-
-  button.textContent =
-    oldText;
-
-  button.classList.remove(
-    "copied"
-  );
-
-}, 1500);
-
-} catch (error) {
-
-console.error(
-  "Copy error:",
-  error
-);
-
-button.textContent =
-  "FAILED";
-
-setTimeout(() => {
-
-  button.textContent =
-    "COPY";
-
-}, 1500);
-
-}
-}
 
 /* ========================================
-PRETTY NAME
+   PRETTY NAME
 ======================================== */
 
 function prettyName(key) {
 
-const names = {
+  const names = {
 
-payload:
-  "📡 PAYLOAD",
+    payload:
+      "📡 PAYLOAD",
 
-proxy:
-  "🌐 PROXY",
+    proxy:
+      "🌐 PROXY",
 
-sni:
-  "🔗 SNI",
+    sni:
+      "🔗 SNI",
 
-notes:
-  "📝 NOTES",
+    notes:
+      "📝 NOTES",
 
-ovpnConfig:
-  "📄 OVPN CONFIG",
+    note:
+      "📝 NOTE",
 
-ovpnUserAndPass:
-  "🔐 OVPN USER & PASSWORD",
+    ovpnConfig:
+      "📄 OVPN CONFIG",
 
-unlockUserAndPass:
-  "🔓 UNLOCK USER & PASSWORD",
+    ovpnUserAndPass:
+      "🔐 OVPN USER & PASSWORD",
 
-unlockUserAndPass2:
-  "🔓 UNLOCK USER & PASSWORD 2",
+    unlockUserAndPass:
+      "🔓 UNLOCK USER & PASSWORD",
 
-name:
-  "🏷️ NAME",
+    unlockUserAndPass2:
+      "🔓 UNLOCK USER & PASSWORD 2",
 
-expiryTime:
-  "⏰ EXPIRY TIME",
+    name:
+      "🏷️ NAME",
 
-version:
-  "📦 VERSION",
+    expiryTime:
+      "⏰ EXPIRY TIME",
 
-connectionMode:
-  "🔌 CONNECTION MODE",
+    version:
+      "📦 VERSION",
 
-dnsResolver:
-  "🌍 DNS RESOLVER",
+    connectionMode:
+      "🔌 CONNECTION MODE",
 
-slowdnsServer:
-  "🐌 SLOWDNS SERVER",
+    dnsResolver:
+      "🌍 DNS RESOLVER",
 
-slowdnsPublickey:
-  "🔑 SLOWDNS PUBLIC KEY",
+    slowdnsServer:
+      "🐌 SLOWDNS SERVER",
 
-v2rayConfig:
-  "🚀 V2RAY CONFIG",
+    slowdnsPublickey:
+      "🔑 SLOWDNS PUBLIC KEY",
 
-cloudconfig:
-  "☁️ CLOUD CONFIG",
+    v2rayConfig:
+      "🚀 V2RAY CONFIG",
 
-psiphon:
-  "🛡️ PSIPHON",
+    cloudconfig:
+      "☁️ CLOUD CONFIG",
 
-blockArea:
-  "📍 BLOCK AREA",
+    psiphon:
+      "🛡️ PSIPHON",
 
-blockedByHwid:
-  "🔒 BLOCKED BY HWID",
+    blockArea:
+      "📍 BLOCK AREA",
 
-blockedByPassword:
-  "🔒 BLOCKED BY PASSWORD",
+    blockedByHwid:
+      "🔒 BLOCKED BY HWID",
 
-blockedByRoot:
-  "🔒 BLOCKED BY ROOT",
+    blockedByPassword:
+      "🔒 BLOCKED BY PASSWORD",
 
-lockAllConfig:
-  "🔒 LOCK ALL CONFIG",
+    blockedByRoot:
+      "🔒 BLOCKED BY ROOT",
 
-blockedByRoot:
-  "🔒 BLOCKED BY ROOT",
+    lockAllConfig:
+      "🔒 LOCK ALL CONFIG",
 
-blockedByHwid:
-  "🔒 BLOCKED BY HWID",
+    mobileDataAndLockProvider:
+      "📱 MOBILE DATA & LOCK PROVIDER",
 
-mobileDataAndLockProvider:
-  "📱 MOBILE DATA & LOCK PROVIDER",
+    unknown14:
+      "❓ UNKNOWN 14",
 
-unknown14:
-  "❓ UNKNOWN 14",
+    unknown22:
+      "❓ UNKNOWN 22",
 
-unknown22:
-  "❓ UNKNOWN 22",
+    extraSniffer:
+      "🔍 EXTRA SNIFFER",
 
-extraSniffer:
-  "🔍 EXTRA SNIFFER",
+    slowdnsEnabled:
+      "🐌 SLOWDNS ENABLED",
 
-slowdnsEnabled:
-  "🐌 SLOWDNS ENABLED",
+    v2rayEnabled:
+      "🚀 V2RAY ENABLED",
 
-v2rayEnabled:
-  "🚀 V2RAY ENABLED",
+    psiphon2:
+      "🛡️ PSIPHON 2",
 
-psiphon2:
-  "🛡️ PSIPHON 2"
+    protection:
+      "🛡️ PROTECTION"
 
-};
+  };
 
-return (
-names[key] ||
-key
-.replace(
-/([A-Z])/g,
-" $1"
-)
-.replace(
-/^./,
-(char) =>
-char.toUpperCase()
-)
-);
+
+  if (names[key]) {
+    return names[key];
+  }
+
+
+  return key
+    .replace(
+      /([A-Z])/g,
+      " $1"
+    )
+    .replace(
+      /^./,
+      (char) =>
+        char.toUpperCase()
+    );
 }
 
+
 /* ========================================
-FORMAT VALUE
+   FORMAT VALUE
 ======================================== */
 
 function formatValue(value) {
 
-if (
-typeof value === "object" &&
-value !== null
-) {
+  if (
+    typeof value === "object" &&
+    value !== null
+  ) {
 
-try {
+    try {
 
-  return JSON.stringify(
-    value,
-    null,
-    2
-  );
+      return JSON.stringify(
+        value,
+        null,
+        2
+      );
 
-} catch {
+    } catch {
+
+      return String(value);
+    }
+  }
 
   return String(value);
 }
 
-}
-
-return String(value);
-}
 
 /* ========================================
-STATUS
+   STATUS
 ======================================== */
 
 function showStatus(
-message,
-type = ""
+  message,
+  type = ""
 ) {
 
-statusBox.textContent =
-message;
+  statusBox.textContent =
+    message;
 
-statusBox.className =
-"status " + type;
+  statusBox.className =
+    "status " + type;
 
-statusBox.style.display =
-"block";
+  statusBox.style.display =
+    "block";
 }
