@@ -1,84 +1,160 @@
-<!DOCTYPE html><html lang="id">
+<!DOCTYPE html>
+<html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BONGKAR CONFIG HC</title>
-  <link rel="stylesheet" href="/style.css">
-</head><body>  <main class="container"><header class="header">
-  <div class="logo">🥒</div>
 
-  <h1>BONGKAR CONFIG HC</h1>
-
-  <p>HTTP Custom Config💦</p>
-</header>
-
-
-<section class="upload-card">
-
-  <!-- LABEL LANGSUNG MEMBUKA FILE PICKER -->
-  <label
-    class="upload-box"
-    id="uploadBox"
-    for="fileInput"
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
   >
 
-    <div class="upload-icon">
-      📁
-    </div>
+  <meta
+    name="description"
+    content="BONGKAR CONFIG HC + EHI - HTTP Custom dan HTTP Injector Config Decryptor"
+  >
 
-    <h2>Pilih File HC</h2>
+  <meta
+    name="theme-color"
+    content="#0f172a"
+  >
 
-    <p>
-      Klik di sini untuk memilih file
-    </p>
+  <title>BONGKAR CONFIG HC + EHI</title>
 
-    <span class="format">
-      .HC ONLY
-    </span>
+  <link
+    rel="stylesheet"
+    href="/style.css"
+  >
+</head>
 
-    <input
-      type="file"
-      id="fileInput"
-      accept=".hc"
-    >
+<body>
+
+  <main class="container">
+
+    <!-- =========================
+         HEADER
+    ========================== -->
+
+    <header class="header">
+
+      <div class="logo">
+        🔐
+      </div>
+
+      <h1>
+        BONGKAR CONFIG
+      </h1>
+
+      <p>
+        HC + EHI CONFIG DECRYPTOR
+      </p>
+
+    </header>
+
+
+    <!-- =========================
+         UPLOAD CARD
+    ========================== -->
+
+    <section class="upload-card">
+
+      <label
+        class="upload-box"
+        id="uploadBox"
+        for="fileInput"
+      >
+
+        <div class="upload-icon">
+          📁
+        </div>
+
+        <h2>
+          Pilih File HC / EHI
+        </h2>
+
+        <p>
+          Klik di sini atau drag & drop file
+        </p>
+
+        <span class="format">
+          .HC + .EHI
+        </span>
+
+        <input
+          type="file"
+          id="fileInput"
+          accept=".hc,.ehi"
+        >
+
+        <div
+          id="fileName"
+          class="file-name"
+        ></div>
+
+      </label>
+
+
+      <!-- =========================
+           DECRYPT BUTTON
+      ========================== -->
+
+      <button
+        type="button"
+        id="decryptBtn"
+        class="decrypt-btn"
+        disabled
+      >
+        🔓 BONGKAR CONFIG
+      </button>
+
+    </section>
+
+
+    <!-- =========================
+         STATUS
+    ========================== -->
 
     <div
-      id="fileName"
-      class="file-name"
+      id="status"
+      class="status"
     ></div>
 
-  </label>
+
+    <!-- =========================
+         RESULT
+    ========================== -->
+
+    <section
+      id="result"
+      class="result"
+    ></section>
 
 
-  <button
-    type="button"
-    id="decryptBtn"
-    class="decrypt-btn"
-    disabled
-  >
-    🔓 BONGKAR CONFIG
-  </button>
+    <!-- =========================
+         FOOTER
+    ========================== -->
 
-</section>
+    <footer>
 
+      <span>
+        BONGKAR CONFIG
+      </span>
 
-<div
-  id="status"
-  class="status"
-></div>
+      <b>•</b>
 
+      <span>
+        HC + EHI
+      </span>
 
-<section
-  id="result"
-  class="result"
-></section>
+    </footer>
+
+  </main>
 
 
-<footer>
-  BONGKAR CONFIG HC
-  <span>•</span>
-  HTTP CUSTOM
-</footer>
+  <!-- =========================
+       JAVASCRIPT
+  ========================== -->
 
-  </main>  <script src="/app.js"></script></body>
+  <script src="/app.js"></script>
+
+</body>
 </html>
