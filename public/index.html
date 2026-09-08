@@ -1,84 +1,356 @@
-<!DOCTYPE html><html lang="id">
+<!DOCTYPE html>
+<html lang="id">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <meta
+    name="theme-color"
+    content="#050505"
+  >
+
   <title>BONGKAR CONFIG HC / EHI</title>
-  <link rel="stylesheet" href="/style.css">
-</head><body>  <main class="container"><header class="header">
-  <div class="logo">🥒</div>
 
-  <h1>BONGKAR CONFIG HC / EHI</h1>
-
-  <p>HTTP Custom Config💦</p>
-</header>
-
-
-<section class="upload-card">
-
-  <!-- LABEL LANGSUNG MEMBUKA FILE PICKER -->
-  <label
-    class="upload-box"
-    id="uploadBox"
-    for="fileInput"
+  <link
+    rel="stylesheet"
+    href="/style.css"
   >
+</head>
 
-    <div class="upload-icon">
-      📁
-    </div>
+<body>
 
-    <h2>Pilih File HC / EHI</h2>
+  <div class="app">
 
-    <p>
-      Klik di sini untuk memilih file
-    </p>
+    <!-- TOPBAR -->
 
-    <span class="format">
-      .HC / .EHI
-    </span>
+    <header class="topbar">
 
-    <input
-      type="file"
-      id="fileInput"
-      accept=".hc,.ehi"
-    >
+      <div class="brand">
 
-    <div
-      id="fileName"
-      class="file-name"
-    ></div>
+        <div class="logo">
+          🥒
+        </div>
 
-  </label>
+        <div>
+          <h1>
+            BONGKAR CONFIG
+          </h1>
 
+          <span>
+            HC / EHI ANALYZER
+          </span>
+        </div>
 
-  <button
-    type="button"
-    id="decryptBtn"
-    class="decrypt-btn"
-    disabled
-  >
-    🔓 BONGKAR CONFIG
-  </button>
+      </div>
 
-</section>
+      <div class="status">
+        <i></i>
+        SYSTEM ONLINE
+      </div>
+
+    </header>
 
 
-<div
-  id="status"
-  class="status"
-></div>
+    <main>
+
+      <!-- HERO -->
+
+      <section class="hero">
+
+        <div class="badge">
+          HTTP CUSTOM CONFIG
+        </div>
+
+        <h2>
+          BONGKAR
+          <b>HC / EHI</b>
+        </h2>
+
+        <p>
+          Bongkar dan analisis konfigurasi
+          HTTP Custom dalam format HC dan EHI.
+        </p>
+
+      </section>
 
 
-<section
-  id="result"
-  class="result"
-></section>
+      <!-- UPLOAD -->
+
+      <section class="card">
+
+        <div class="title">
+
+          <div>
+
+            <h3>
+              CONFIGURATION INPUT
+            </h3>
+
+            <p>
+              Pilih file konfigurasi untuk dibongkar
+            </p>
+
+          </div>
+
+        </div>
 
 
-<footer>
-  BONGKAR CONFIG HC / EHI
-  <span>•</span>
-  HTTP CUSTOM
-</footer>
+        <label
+          class="drop-zone"
+          id="uploadBox"
+          for="fileInput"
+        >
 
-  </main>  <script src="/app.js"></script></body>
+          <div class="upload-icon">
+            ↑
+          </div>
+
+
+          <h4 id="fileName">
+            Drop your file here
+          </h4>
+
+
+          <p>
+            or
+            <span>
+              browse files
+            </span>
+          </p>
+
+
+          <small>
+            HC / EHI • MAX 20 MB
+          </small>
+
+
+          <input
+            type="file"
+            id="fileInput"
+            accept=".hc,.ehi"
+            hidden
+          >
+
+        </label>
+
+
+        <div class="actions">
+
+          <button
+            type="button"
+            id="decryptBtn"
+            class="analyze"
+            disabled
+          >
+            ⚡ ANALYZE CONFIG
+          </button>
+
+
+          <button
+            type="button"
+            id="clear"
+            class="clear"
+          >
+            CLEAR
+          </button>
+
+        </div>
+
+      </section>
+
+
+      <!-- PROCESS CONSOLE -->
+
+      <section class="card">
+
+        <div class="title">
+
+          <div>
+
+            <h3>
+              PROCESS CONSOLE
+            </h3>
+
+            <p>
+              Analysis activity
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div
+          class="console"
+          id="console"
+        >
+
+          <div class="log">
+            <b>›</b>
+            Waiting for input...
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- STATUS -->
+
+      <section
+        class="card"
+        id="statusCard"
+      >
+
+        <div class="title">
+
+          <div>
+
+            <h3>
+              STATUS
+            </h3>
+
+            <p>
+              Decryption process
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div
+          id="status"
+          class="log"
+        >
+          <b>›</b>
+          Waiting for file...
+        </div>
+
+      </section>
+
+
+      <!-- RESULT -->
+
+      <section
+        class="card result hidden"
+        id="resultCard"
+      >
+
+        <div class="title">
+
+          <div>
+
+            <h3>
+              ANALYSIS RESULT
+            </h3>
+
+            <p>
+              Configuration information
+            </p>
+
+          </div>
+
+
+          <div class="result-buttons">
+
+            <button
+              id="copy"
+              type="button"
+            >
+              COPY
+            </button>
+
+
+            <button
+              id="export"
+              type="button"
+            >
+              EXPORT
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <pre id="result"></pre>
+
+      </section>
+
+
+      <!-- INFO -->
+
+      <section class="info-grid">
+
+        <div class="info">
+
+          <strong>
+            🔒 SECURE
+          </strong>
+
+          <span>
+            File hanya diproses untuk analisis
+          </span>
+
+        </div>
+
+
+        <div class="info">
+
+          <strong>
+            ⚡ FAST
+          </strong>
+
+          <span>
+            Proses konfigurasi dengan cepat
+          </span>
+
+        </div>
+
+
+        <div class="info">
+
+          <strong>
+            HC / EHI
+          </strong>
+
+          <span>
+            Mendukung .HC dan .EHI
+          </span>
+
+        </div>
+
+      </section>
+
+    </main>
+
+
+    <!-- FOOTER -->
+
+    <footer>
+
+      <span>
+        BONGKAR CONFIG HC / EHI
+      </span>
+
+      <span>
+        HTTP CUSTOM
+      </span>
+
+    </footer>
+
+  </div>
+
+
+  <script src="/app.js"></script>
+
+</body>
+
 </html>
+
