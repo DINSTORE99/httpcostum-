@@ -4,9 +4,9 @@ const crypto = require("crypto")
 const { argon2id } = require("hash-wasm")
 const sodium = require("libsodium-wrappers")
 
-// ============================================================
+// ======================================================
 // CONSTANTS
-// ============================================================
+// ======================================================
 
 const L1_KEY = Buffer.from(
   "7e1210f7aab956f7a668bda6e57feddb7f84ad840aef8d27b1b969959be3ab6c",
@@ -57,49 +57,52 @@ const CUSTOM_ALPHABET =
 const STD_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-// ============================================================
+// ======================================================
 // CUSTOM BASE64
-// ============================================================
+// ======================================================
 
 function customBase64Decode(value) {
-  let s = String(value).replace(/\?/g, "")
+  let clean = String(value).replace(/\?/g, "")
 
-  const rem = s.length % 4
+  const rem = clean.length % 4
 
   if (rem) {
-    s += "=".repeat(4 - rem)
+    clean += "=".repeat(4 - rem)
   }
 
-  let out = ""
+  let standard = ""
 
-  for (const ch of s) {
-    if (ch === "=") {
-      out += "="
+  for (const char of clean) {
+    if (char === "=") {
+      standard += "="
       continue
     }
 
     const index =
-      CUSTOM_ALPHABET.indexOf(ch)
+      CUSTOM_ALPHABET.indexOf(char)
 
     if (index === -1) {
       throw new Error(
-        `Invalid custom base64 character: ${ch}`
+        "Invalid custom base64 character"
       )
     }
 
-    out += STD_ALPHABET[index]
+    standard += STD_ALPHABET[index]
   }
 
-  return Buffer.from(out, "base64")
+  return Buffer.from(
+    standard,
+    "base64"
+  )
 }
 
-// ============================================================
-// PKCS7
-// ============================================================
+// ======================================================
+// PKCS7 UNPAD
+// ======================================================
 
-function unpad(buffer) {
+function pkcs7Unpad(buffer) {
   if (!buffer.length) {
-    throw new Error("empty padded buffer")
+    throw new Error("Empty buffer")
   }
 
   const pad =
@@ -110,7 +113,7 @@ function unpad(buffer) {
     pad > 16 ||
     pad > buffer.length
   ) {
-    throw new Error("bad padding")
+    throw new Error("Invalid padding")
   }
 
   for (
@@ -119,7 +122,7 @@ function unpad(buffer) {
     i++
   ) {
     if (buffer[i] !== pad) {
-      throw new Error("bad padding")
+      throw new Error("Invalid padding")
     }
   }
 
@@ -129,21 +132,15 @@ function unpad(buffer) {
   )
 }
 
-// ============================================================
+// ======================================================
 // AES CBC
-// ============================================================
+// ======================================================
 
-function aesCbcDecrypt(
-  data,
+function aesDecrypt(
+  encrypted,
   key,
   iv
 ) {
-  if (iv.length !== 16) {
-    throw new Error(
-      `AES IV harus 16 byte, dapat ${iv.length}`
-    )
-  }
-
   const algorithm =
     key.length === 32
       ? "aes-256-cbc"
@@ -158,43 +155,41 @@ function aesCbcDecrypt(
 
   decipher.setAutoPadding(false)
 
-  const result = Buffer.concat([
-    decipher.update(data),
-    decipher.final()
-  ])
+  const decrypted =
+    Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final()
+    ])
 
-  return unpad(result)
+  return pkcs7Unpad(decrypted)
 }
 
-// ============================================================
-// EHI XOR LAYER
-// ============================================================
+// ======================================================
+// XOR LAYER
+// EXACT PORT OF PYTHON
+// ======================================================
 
 function decryptXorLayer(
-  ciphertextStr,
+  ciphertext,
   key
 ) {
   if (
-    !ciphertextStr ||
-    !String(ciphertextStr).trim()
+    !ciphertext ||
+    !String(ciphertext).trim()
   ) {
-    return ciphertextStr
+    return ciphertext
   }
 
   try {
-    // Python:
-    // ciphertext_str[::-1]
     const reversed =
-      String(ciphertextStr)
+      String(ciphertext)
         .split("")
         .reverse()
         .join("")
 
-    // custom base64
     const hexBytes =
       customBase64Decode(reversed)
 
-    // ASCII hex
     let hexString =
       hexBytes.toString("ascii")
 
@@ -209,7 +204,7 @@ function decryptXorLayer(
     const keyString =
       String(key)
 
-    const output = []
+    const result = []
 
     for (
       let i = 0;
@@ -223,23 +218,25 @@ function decryptXorLayer(
         )
 
       if (value !== 0) {
-        output.push(value)
+        result.push(value)
       }
     }
 
     const plaintext =
-      Buffer.from(output).toString("utf8")
+      Buffer.from(result)
+        .toString("utf8")
 
     let controls = 0
 
-    for (const c of plaintext) {
-      const n = c.charCodeAt(0)
+    for (const char of plaintext) {
+      const code =
+        char.charCodeAt(0)
 
       if (
-        n < 32 &&
-        n !== 9 &&
-        n !== 10 &&
-        n !== 13
+        code < 32 &&
+        code !== 9 &&
+        code !== 10 &&
+        code !== 13
       ) {
         controls++
       }
@@ -259,87 +256,73 @@ function decryptXorLayer(
   }
 }
 
-// ============================================================
+// ======================================================
 // CONFIG MESSAGE
-// ============================================================
+// ======================================================
 
-function decodeConfigMessage(
-  ciphertextStr
-) {
+function decodeConfigMessage(value) {
   if (
-    !ciphertextStr ||
-    !String(ciphertextStr).trim()
+    !value ||
+    !String(value).trim()
   ) {
-    return ciphertextStr
+    return value
   }
 
   try {
-    let s = String(ciphertextStr)
+    let input =
+      String(value)
 
-    const rem = s.length % 4
+    const rem =
+      input.length % 4
 
     if (rem) {
-      s += "=".repeat(4 - rem)
+      input += "=".repeat(4 - rem)
     }
 
     const raw =
-      Buffer.from(s, "base64")
+      Buffer.from(
+        input,
+        "base64"
+      )
 
-    const utf8Text =
+    const text =
       raw.toString("utf8")
-
-    // Python:
-    // encode("utf-16-be")
-    //
-    // We manually create BE Java chars.
-
-    const javaChars = []
-
-    for (
-      let i = 0;
-      i < utf8Text.length;
-      i++
-    ) {
-      const code =
-        utf8Text.charCodeAt(i)
-
-      javaChars.push(code)
-    }
 
     const key =
       "EHIMSG"
 
-    const result = []
+    const chars = []
 
     for (
       let i = 0;
-      i < javaChars.length;
+      i < text.length;
       i++
     ) {
-      result.push(
-        javaChars[i] ^
+      const original =
+        text.charCodeAt(i)
+
+      const xor =
+        original ^
         key.charCodeAt(
           i % key.length
         )
-      )
+
+      chars.push(xor)
     }
 
-    let output = ""
-
-    for (const code of result) {
-      output += String.fromCharCode(code)
-    }
-
-    return output
+    return String.fromCharCode(
+      ...chars
+    )
 
   } catch {
-    return ciphertextStr
+    return value
   }
 }
 
-// ============================================================
+// ======================================================
 // XXTEA
-// ============================================================
+// EXACT PORT
+// ======================================================
 
 function xxteaDecrypt(
   data,
@@ -349,9 +332,11 @@ function xxteaDecrypt(
     return Buffer.alloc(0)
   }
 
-  let input = Buffer.from(data)
+  let input =
+    Buffer.from(data)
 
-  const rem = input.length % 4
+  const rem =
+    input.length % 4
 
   if (rem) {
     input = Buffer.concat([
@@ -360,25 +345,31 @@ function xxteaDecrypt(
     ])
   }
 
-  const kbuf = Buffer.alloc(16)
+  const key16 =
+    Buffer.alloc(16)
 
   Buffer.from(key)
     .subarray(0, 16)
-    .copy(kbuf)
+    .copy(key16)
 
   const k = [
-    kbuf.readUInt32LE(0),
-    kbuf.readUInt32LE(4),
-    kbuf.readUInt32LE(8),
-    kbuf.readUInt32LE(12)
+    key16.readUInt32LE(0),
+    key16.readUInt32LE(4),
+    key16.readUInt32LE(8),
+    key16.readUInt32LE(12)
   ]
 
   const n =
     input.length / 4
 
-  const v = new Array(n)
+  const v =
+    new Array(n)
 
-  for (let i = 0; i < n; i++) {
+  for (
+    let i = 0;
+    i < n;
+    i++
+  ) {
     v[i] =
       input.readUInt32LE(i * 4)
   }
@@ -387,7 +378,8 @@ function xxteaDecrypt(
     return input
   }
 
-  const delta = 0x9e3779b9
+  const delta =
+    0x9e3779b9
 
   let sum =
     Math.imul(
@@ -395,7 +387,8 @@ function xxteaDecrypt(
       delta
     ) >>> 0
 
-  let y = v[0]
+  let y =
+    v[0]
 
   while (sum !== 0) {
     const e =
@@ -419,14 +412,19 @@ function xxteaDecrypt(
           ) ^
           (
             (sum ^ y) +
-            (k[(p & 3) ^ e] ^ z)
+            (
+              k[
+                (p & 3) ^ e
+              ] ^ z
+            )
           )
         ) >>> 0
 
       v[p] =
         (v[p] - mx) >>> 0
 
-      y = v[p]
+      y =
+        v[p]
     }
 
     const z =
@@ -449,17 +447,24 @@ function xxteaDecrypt(
     v[0] =
       (v[0] - mx) >>> 0
 
-    y = v[0]
+    y =
+      v[0]
 
     sum =
       (sum - delta) >>> 0
   }
 
-  const output =
-    Buffer.alloc(n * 4)
+  const decrypted =
+    Buffer.alloc(
+      n * 4
+    )
 
-  for (let i = 0; i < n; i++) {
-    output.writeUInt32LE(
+  for (
+    let i = 0;
+    i < n;
+    i++
+  ) {
+    decrypted.writeUInt32LE(
       v[i] >>> 0,
       i * 4
     )
@@ -470,22 +475,22 @@ function xxteaDecrypt(
 
   if (
     length > 0 &&
-    length <= output.length
+    length <= decrypted.length
   ) {
-    return output.subarray(
+    return decrypted.subarray(
       0,
       length
     )
   }
 
-  return output
+  return decrypted
 }
 
-// ============================================================
-// CONTAINER
-// ============================================================
+// ======================================================
+// EHI CONTAINER
+// ======================================================
 
-function parseEhi(
+function parseEHI(
   file
 ) {
   let offset = 0
@@ -510,7 +515,7 @@ function parseEhi(
       return ""
     }
 
-    const text =
+    const value =
       file
         .subarray(
           offset,
@@ -520,16 +525,14 @@ function parseEhi(
 
     offset += length
 
-    return text
+    return value
   }
 
-  const type =
-    readUTF()
+  readUTF()
 
   offset += 8
 
-  const version =
-    readUTF()
+  readUTF()
 
   offset += 8
 
@@ -547,47 +550,53 @@ function parseEhi(
 
   offset += 8
 
-  const payload =
-    file.subarray(
-      offset,
-      offset + payloadLength
-    )
-
-  return {
-    type,
-    version,
-    payload
-  }
+  return file.subarray(
+    offset,
+    offset + payloadLength
+  )
 }
 
-// ============================================================
+// ======================================================
 // MASTER KEY
-// ============================================================
+// EXACT PYTHON str() BEHAVIOR
+// ======================================================
+
+function pythonString(value) {
+  if (Array.isArray(value)) {
+    return (
+      "[" +
+      value
+        .map(v => {
+          if (
+            typeof v === "string"
+          ) {
+            return `'${v}'`
+          }
+
+          return String(v)
+        })
+        .join(", ") +
+      "]"
+    )
+  }
+
+  return String(value)
+}
 
 function generateMasterKey(
   config
 ) {
-  // PENTING:
-  // Harus meniru Python:
-  //
-  // "".join(str(p) for p in (...) if p)
-  //
-  // Jadi array lockModes HARUS menjadi
-  // String JavaScript seperti Python list,
-  // bukan join("").
-
-  const lockModes =
-    config.lockModes || ""
-
   const values = [
     config.configAesKey || "",
     config.configIdentifier || "",
     config.configSalt || "",
-    config.configTimestamp || 0,
-    config.configExpiryTimestamp || 0,
-    Array.isArray(lockModes)
-      ? `[${lockModes.map(x => `'${x}'`).join(", ")}]`
-      : lockModes,
+    String(
+      config.configTimestamp ?? 0
+    ),
+    String(
+      config.configExpiryTimestamp ?? 0
+    ),
+    config.lockModes || "",
     config.lockModesHash || "",
     config.configHwid || "",
     config.configLockMobileOperatorId || ""
@@ -595,45 +604,43 @@ function generateMasterKey(
 
   const payload =
     values
-      .filter(v => v)
-      .map(v => String(v))
+      .filter(Boolean)
+      .map(pythonString)
       .join("")
 
   return crypto
     .createHash("sha256")
-    .update(payload, "utf8")
+    .update(
+      payload,
+      "utf8"
+    )
     .digest()
 }
 
-// ============================================================
+// ======================================================
 // OUTER DECRYPT
-// ============================================================
+// ======================================================
 
 function decryptOuter(
   payload
 ) {
-  const ivs = [
+  const candidates = [
     ...BYPASS_IVS.map(iv => ({
       iv,
       mode: "bypass"
     })),
-
     ...STANDARD_IVS.map(iv => ({
       iv,
       mode: "standard"
     }))
   ]
 
-  let lastError = null
+  let lastError
 
-  for (const item of ivs) {
+  for (const item of candidates) {
     try {
-      // ------------------------------
-      // LAYER 1
-      // ------------------------------
-
       const layer1 =
-        aesCbcDecrypt(
+        aesDecrypt(
           payload,
           L1_KEY,
           item.iv
@@ -645,36 +652,19 @@ function decryptOuter(
       const parts =
         text.split(":")
 
-      if (parts.length < 3) {
+      if (
+        parts.length < 3
+      ) {
         throw new Error(
-          "Layer 1 format invalid"
+          "Layer 1 invalid"
         )
       }
-
-      // ------------------------------
-      // LAYER 2
-      //
-      // EXACT Python:
-      //
-      // AES.new(
-      //   L2_KEY_STATIC,
-      //   AES.MODE_CBC,
-      //   base64.b64decode(parts[0])
-      // )
-      //
-      // ------------------------------
 
       const iv2 =
         Buffer.from(
           parts[0],
           "base64"
         )
-
-      if (iv2.length !== 16) {
-        throw new Error(
-          `L2 IV invalid: ${iv2.length} byte`
-        )
-      }
 
       const encrypted2 =
         Buffer.from(
@@ -683,15 +673,11 @@ function decryptOuter(
         )
 
       const garbage =
-        aesCbcDecrypt(
+        aesDecrypt(
           encrypted2,
           L2_KEY_STATIC,
           iv2
         )
-
-      // ------------------------------
-      // XXTEA
-      // ------------------------------
 
       const finalRaw =
         xxteaDecrypt(
@@ -718,117 +704,123 @@ function decryptOuter(
       return {
         config,
         mode: item.mode,
-        matchedIv:
-          item.iv.toString("hex")
+        iv: item.iv
       }
 
-    } catch (err) {
-      lastError = err
+    } catch (error) {
+      lastError = error
     }
   }
 
   throw new Error(
-    `Semua IV EHI gagal: ${
-      lastError?.message || "unknown"
-    }`
+    "Semua IV EHI gagal: " +
+    (
+      lastError?.message ||
+      "unknown"
+    )
   )
 }
 
-// ============================================================
+// ======================================================
 // LOCKED CONFIG
-// ============================================================
+// ======================================================
 
-async function decryptLockedConfig(
+async function decryptLocked(
   config
 ) {
-  const targetSalt =
-    config.configSalt || "EVZJNI"
+  const salt =
+    config.configSalt ||
+    "EVZJNI"
 
-  const targetData =
+  const configData =
     config.configData
 
-  if (!targetData) {
+  if (!configData) {
     throw new Error(
       "configData tidak ditemukan"
     )
   }
 
-  // PENTING:
-  // Harus pakai decryptXorLayer()
-  // persis seperti Python source.
+  // EXACT:
+  // _decrypt_xor_layer(configData, salt)
 
-  const aaaResult =
+  const decoded =
     decryptXorLayer(
-      targetData,
-      targetSalt
+      configData,
+      salt
     )
 
-  if (!aaaResult) {
+  if (!decoded) {
     throw new Error(
-      "XOR configData gagal"
+      "configData XOR gagal"
     )
   }
 
-  const rawPayload =
+  const raw =
     Buffer.from(
-      aaaResult,
+      decoded,
       "base64"
     )
 
   if (
-    rawPayload.length <= 50
+    raw.length <= 50
   ) {
     throw new Error(
-      "locked payload terlalu pendek"
+      "Locked payload invalid"
     )
   }
 
   const timeCost =
-    rawPayload.readUInt32LE(1)
+    raw.readUInt32LE(1)
 
   const memoryCost =
-    rawPayload.readUInt32LE(5)
+    raw.readUInt32LE(5)
 
   const parallelism =
-    rawPayload[9]
+    raw[9]
 
   const argonSalt =
-    rawPayload.subarray(
+    raw.subarray(
       0x0a,
       0x1a
     )
 
   const nonce =
-    rawPayload.subarray(
+    raw.subarray(
       0x1a,
       0x32
     )
 
   const aad =
-    rawPayload.subarray(
+    raw.subarray(
       0,
       0x1a
     )
 
   const ciphertext =
-    rawPayload.subarray(
+    raw.subarray(
       0x32,
       -16
     )
 
   const tag =
-    rawPayload.subarray(
+    raw.subarray(
       -16
     )
 
   const masterKey =
-    generateMasterKey(config)
+    generateMasterKey(
+      config
+    )
 
+  // hash-wasm:
+  // memorySize = KiB
   const argonKey =
     Buffer.from(
       await argon2id({
         password: masterKey,
         salt: argonSalt,
+        timeCost,
         iterations: timeCost,
         memorySize: memoryCost,
         parallelism,
@@ -839,51 +831,48 @@ async function decryptLockedConfig(
 
   await sodium.ready
 
-  const combined =
-    Buffer.concat([
-      ciphertext,
-      tag
-    ])
-
-  let plaintext
+  let decrypted
 
   try {
-    plaintext =
+    decrypted =
       sodium
         .crypto_aead_xchacha20poly1305_ietf_decrypt(
           null,
-          combined,
+          Buffer.concat([
+            ciphertext,
+            tag
+          ]),
           aad,
           nonce,
           argonKey
         )
-  } catch (err) {
+  } catch {
     throw new Error(
       "XChaCha20 authentication gagal"
     )
   }
 
-  if (!plaintext) {
+  if (!decrypted) {
     throw new Error(
-      "XChaCha20 menghasilkan data kosong"
+      "XChaCha20 decrypt kosong"
     )
   }
 
   return JSON.parse(
-    Buffer.from(plaintext)
+    Buffer.from(decrypted)
       .toString("utf8")
   )
 }
 
-// ============================================================
-// INNER FIELD
-// ============================================================
+// ======================================================
+// INNER FIELDS
+// ======================================================
 
 function decodeInnerFields(
   config,
   salt
 ) {
-  const output = {}
+  const result = {}
 
   for (
     const [key, value]
@@ -893,43 +882,49 @@ function decodeInnerFields(
       typeof value === "string" &&
       value.trim()
     ) {
+      let decoded
+
       if (
         key === "configMessage"
       ) {
-        output[key] =
-          decodeConfigMessage(value)
+        decoded =
+          decodeConfigMessage(
+            value
+          )
       } else {
-        const decoded =
+        decoded =
           decryptXorLayer(
             value,
             salt
           )
-
-        output[key] =
-          decoded !== null
-            ? decoded
-            : value
       }
 
+      result[key] =
+        decoded !== null &&
+        decoded !== undefined
+          ? decoded
+          : value
+
     } else {
-      output[key] = value
+      result[key] =
+        value
     }
   }
 
-  return output
+  return result
 }
 
-// ============================================================
+// ======================================================
 // MAIN
-// ============================================================
+// ======================================================
 
 async function decryptEHI(
   file
 ) {
-  const container =
-    parseEhi(file)
+  const payload =
+    parseEHI(file)
 
-  if (!container) {
+  if (!payload) {
     throw new Error(
       "EHI container invalid"
     )
@@ -937,19 +932,19 @@ async function decryptEHI(
 
   const outer =
     decryptOuter(
-      container.payload
+      payload
     )
 
-  let parsedFinal
+  let finalConfig
 
   if (
     outer.mode === "bypass"
   ) {
-    parsedFinal =
+    finalConfig =
       outer.config
   } else {
-    parsedFinal =
-      await decryptLockedConfig(
+    finalConfig =
+      await decryptLocked(
         outer.config
       )
   }
@@ -958,13 +953,13 @@ async function decryptEHI(
     outer.config.configSalt ||
     "EVZJNI"
 
-  const cleaned =
+  finalConfig =
     decodeInnerFields(
-      parsedFinal,
+      finalConfig,
       salt
     )
 
-  // Parse embedded JSON
+  // embedded JSON
   for (
     const field of [
       "v2rRawJson",
@@ -972,11 +967,11 @@ async function decryptEHI(
     ]
   ) {
     if (
-      typeof cleaned[field] === "string"
+      typeof finalConfig[field] === "string"
     ) {
       try {
         const text =
-          cleaned[field]
+          finalConfig[field]
 
         const start =
           text.indexOf("{")
@@ -988,89 +983,87 @@ async function decryptEHI(
           start !== -1 &&
           end !== -1
         ) {
-          cleaned[field] =
+          let parsed =
             JSON.parse(
               text.slice(
                 start,
                 end + 1
               )
             )
+
+          if (
+            typeof parsed === "string"
+          ) {
+            parsed =
+              JSON.parse(parsed)
+          }
+
+          finalConfig[field] =
+            parsed
         }
       } catch {}
     }
   }
 
-  const host =
-    cleaned.host ||
-    cleaned.sshHost ||
-    null
-
-  const port =
-    cleaned.port ||
-    cleaned.sshPort ||
-    null
-
-  const username =
-    cleaned.username ||
-    cleaned.user ||
-    cleaned.sshUsername ||
-    null
-
-  const password =
-    cleaned.password ||
-    cleaned.pass ||
-    cleaned.sshPassword ||
-    null
-
-  const sni =
-    cleaned.sniHostname ||
-    cleaned.sni ||
-    null
-
-  const proxy =
-    cleaned.remoteProxy ||
-    cleaned.proxy ||
-    null
-
-  const payload =
-    cleaned.payload ||
-    cleaned.httpPayload ||
-    null
-
   return {
     success: true,
 
-    type:
-      container.type,
+    type: "ehi",
 
     appVersion:
-      container.version,
+      outer.config.appVersion ||
+      null,
 
     mode:
       outer.mode,
 
     matchedIv:
-      outer.matchedIv,
+      outer.iv.toString("hex"),
 
-    host,
-    port,
-    username,
-    password,
-    sni,
-    proxy,
-    payload,
+    host:
+      finalConfig.host ||
+      null,
+
+    port:
+      finalConfig.port ||
+      null,
+
+    username:
+      finalConfig.username ||
+      finalConfig.user ||
+      null,
+
+    password:
+      finalConfig.password ||
+      null,
+
+    sni:
+      finalConfig.sniHostname ||
+      finalConfig.sni ||
+      null,
+
+    proxy:
+      finalConfig.remoteProxy ||
+      finalConfig.proxy ||
+      null,
+
+    payload:
+      finalConfig.payload ||
+      null,
 
     config:
-      cleaned
+      finalConfig
   }
 }
 
-// ============================================================
-// HTTP BODY
-// ============================================================
+// ======================================================
+// BODY
+// ======================================================
 
 function getBody(req) {
-  if (Buffer.isBuffer(req.body)) {
+  if (
+    Buffer.isBuffer(req.body)
+  ) {
     return req.body
   }
 
@@ -1096,79 +1089,88 @@ function getBody(req) {
   return null
 }
 
-// ============================================================
-// VERCEL
-// ============================================================
+// ======================================================
+// VERCEL HANDLER
+// ======================================================
 
-module.exports = async function handler(
-  req,
-  res
-) {
-  res.setHeader(
-    "Access-Control-Allow-Origin",
-    "*"
-  )
+module.exports =
+  async function handler(
+    req,
+    res
+  ) {
+    res.setHeader(
+      "Access-Control-Allow-Origin",
+      "*"
+    )
 
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,POST,OPTIONS"
-  )
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET,POST,OPTIONS"
+    )
 
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type"
-  )
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type"
+    )
 
-  if (req.method === "OPTIONS") {
-    return res
-      .status(204)
-      .end()
-  }
+    if (
+      req.method === "OPTIONS"
+    ) {
+      return res
+        .status(204)
+        .end()
+    }
 
-  if (req.method === "GET") {
-    return res.status(200).json({
-      success: true,
-      api: "HTTP Injector EHI",
-      status: "online"
-    })
-  }
-
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      success: false,
-      error: "Method not allowed"
-    })
-  }
-
-  try {
-    const body =
-      getBody(req)
-
-    if (!body) {
-      return res.status(400).json({
-        success: false,
-        error: "File EHI tidak ditemukan"
+    if (
+      req.method === "GET"
+    ) {
+      return res.status(200).json({
+        success: true,
+        api: "HTTP Injector EHI API",
+        status: "online",
+        version: "final"
       })
     }
 
-    const result =
-      await decryptEHI(body)
+    if (
+      req.method !== "POST"
+    ) {
+      return res.status(405).json({
+        success: false,
+        error: "Method not allowed"
+      })
+    }
 
-    return res
-      .status(200)
-      .json(result)
+    try {
+      const body =
+        getBody(req)
 
-  } catch (err) {
-    console.error(
-      "[EHI ERROR]",
-      err
-    )
+      if (!body) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "File EHI tidak ditemukan"
+        })
+      }
 
-    return res.status(400).json({
-      success: false,
-      error:
-        err?.message ||
-        "Decrypt gagal"
-    })
+      const result =
+        await decryptEHI(body)
+
+      return res
+        .status(200)
+        .json(result)
+
+    } catch (error) {
+      console.error(
+        "[EHI]",
+        error
+      )
+
+      return res.status(400).json({
+        success: false,
+        error:
+          error?.message ||
+          "Decrypt EHI gagal"
+      })
+    }
   }
-}
