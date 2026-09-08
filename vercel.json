@@ -1,19 +1,5 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "rewrites": [
-    {
-      "source": "/api/hc",
-      "destination": "/api/hc.js"
-    },
-    {
-      "source": "/api/ehi",
-      "destination": "/api/ehi.js"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "outputDirectory": "dist"
 }
