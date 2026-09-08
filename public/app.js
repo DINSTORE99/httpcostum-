@@ -1,5 +1,10 @@
-const uploadBox = document.getElementById("uploadBox");
+// ========================================
+// BONGKAR CONFIG HC + EHI
+// public/app.js
+// ========================================
+
 const fileInput = document.getElementById("fileInput");
+const uploadBox = document.getElementById("uploadBox");
 const fileName = document.getElementById("fileName");
 const decryptBtn = document.getElementById("decryptBtn");
 const statusBox = document.getElementById("status");
@@ -7,769 +12,841 @@ const resultBox = document.getElementById("result");
 
 let selectedFile = null;
 
-/* ========================================
-FILE SELECT
-======================================== */
 
-fileInput.addEventListener("change", () => {
-const file = fileInput.files[0];
+// ========================================
+// FILE SELECT
+// ========================================
 
-if (!file) return;
-
-setFile(file);
-});
-
-/* ========================================
-DRAG & DROP
-======================================== */
-
-uploadBox.addEventListener("dragover", (e) => {
-e.preventDefault();
-
-uploadBox.classList.add("dragover");
-});
-
-uploadBox.addEventListener("dragleave", () => {
-uploadBox.classList.remove("dragover");
-});
-
-uploadBox.addEventListener("drop", (e) => {
-e.preventDefault();
-
-uploadBox.classList.remove("dragover");
-
-const file = e.dataTransfer.files[0];
-
-if (file) {
-setFile(file);
-}
-});
-
-/* ========================================
-SET FILE
-======================================== */
-
-function setFile(file) {
-
-if (!file.name.toLowerCase().endsWith(".hc")) {
-
-selectedFile = null;
-
-decryptBtn.disabled = true;
-
-fileName.textContent = "";
-
-fileName.style.display = "none";
-
-showStatus(
-  "❌ Hanya file .HC yang diperbolehkan",
-  "error"
-);
-
-return;
-
-}
-
-selectedFile = file;
-
-fileName.textContent =
-"📄 " + file.name;
-
-fileName.style.display = "block";
-
-decryptBtn.disabled = false;
-
-showStatus(
-"✅ File siap dibongkar",
-"success"
-);
-}
-
-/* ========================================
-DECRYPT BUTTON
-======================================== */
-
-decryptBtn.addEventListener("click", async () => {
-
-if (!selectedFile) {
-showStatus(
-"❌ Pilih file HC terlebih dahulu",
-"error"
-);
-
-return;
-
-}
-
-decryptBtn.disabled = true;
-
-decryptBtn.innerHTML =
-"⏳ MEMPROSES...";
-
-resultBox.innerHTML = "";
-
-showStatus(
-"🔄 Sedang membongkar config...",
-"loading"
-);
-
-try {
-
-const formData = new FormData();
-
-formData.append(
-  "file",
-  selectedFile
-);
-
-const response = await fetch(
-  "/api/decrypt",
-  {
-    method: "POST",
-    body: formData
-  }
-);
-
-const text = await response.text();
-
-let data;
-
-try {
-
-  data = JSON.parse(text);
-
-} catch (e) {
-
-  console.error(
-    "Response server:",
-    text
-  );
-
-  throw new Error(
-    text ||
-    "Server tidak mengembalikan JSON"
-  );
-}
-
-if (!response.ok || !data.success) {
-
-  throw new Error(
-    data.error ||
-    "Gagal membongkar config"
-  );
-}
-
-renderResult(data);
-
-showStatus(
-  "✅ Config berhasil dibongkar",
-  "success"
-);
-
-} catch (error) {
-
-console.error(error);
-
-showStatus(
-  "❌ " + error.message,
-  "error"
-);
-
-} finally {
-
-decryptBtn.disabled = false;
-
-decryptBtn.innerHTML =
-  "🔓 BONGKAR CONFIG";
-
-}
-
-});
-
-/* ========================================
-RENDER RESULT
-======================================== */
-
-function renderResult(data) {
-
-resultBox.innerHTML = "";
-
-const config =
-data.config || data.result || data;
-
-const title =
-document.createElement("div");
-
-title.className =
-"result-title";
-
-title.textContent =
-"📋 HASIL CONFIG";
-
-resultBox.appendChild(title);
-
-/* ======================================
-SSH
-====================================== */
-
-let sshText = "";
-
-if (
-config.sshField &&
-typeof config.sshField === "object"
-) {
-
-const ssh =
-  config.sshField;
-
-const host =
-  ssh.host ||
-  ssh.hostname ||
-  "";
-
-const port =
-  ssh.port ||
-  "";
-
-const username =
-  ssh.username ||
-  ssh.user ||
-  "";
-
-const password =
-  ssh.password ||
-  ssh.pass ||
-  "";
-
-if (
-  host ||
-  port ||
-  username ||
-  password
-) {
-
-  sshText =
-    `${host}:${port}@${username}:${password}`;
-}
-
-} else if (
-typeof config.sshField === "string"
-) {
-
-sshText =
-  config.sshField;
-
-} else if (
-typeof config.ssh === "string"
-) {
-
-sshText =
-  config.ssh;
-
-} else if (
-config.ssh &&
-typeof config.ssh === "object"
-) {
-
-const ssh =
-  config.ssh;
-
-sshText =
-  `${ssh.host || ssh.hostname || ""}:` +
-  `${ssh.port || ""}@` +
-  `${ssh.username || ssh.user || ""}:` +
-  `${ssh.password || ssh.pass || ""}`;
-
-}
-
-if (sshText) {
-
-const sshBox =
-  createField(
-    "ssh",
-    "🔑 SSH",
-    sshText,
-    true
-  );
-
-resultBox.appendChild(sshBox);
-
-}
-
-/* ======================================
-CONFIG FIELDS
-====================================== */
-
-const skipKeys = [
-"ssh",
-"sshField"
-];
-
-let fieldCount = 0;
-
-Object.keys(config).forEach((key) => {
-
-if (skipKeys.includes(key)) {
-  return;
-}
-
-const value =
-  config[key];
-
-/*
-  Jangan tampilkan field kosong
-  supaya hasil lebih bersih.
-*/
-
-if (
-  value === null ||
-  value === undefined ||
-  value === ""
-) {
-  return;
-}
-
-fieldCount++;
-
-const field =
-  createField(
-    key,
-    prettyName(key),
-    formatValue(value),
-    false
-  );
-
-resultBox.appendChild(field);
-
-});
-
-/* ======================================
-PROTECTION
-====================================== */
-
-if (
-data.protections &&
-typeof data.protections === "object"
-) {
-
-const protectionTitle =
-  document.createElement("div");
-
-protectionTitle.className =
-  "protection-title";
-
-protectionTitle.textContent =
-  "🛡️ PROTECTION";
-
-resultBox.appendChild(
-  protectionTitle
-);
-
-
-Object.keys(
-  data.protections
-).forEach((key) => {
-
-  const value =
-    data.protections[key];
-
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
+fileInput.addEventListener("change", function () {
+  if (!this.files || !this.files.length) {
+    resetFile();
     return;
   }
 
-  const field =
-    createField(
-      key,
-      prettyName(key),
-      formatValue(value),
-      false
-    );
-
-  resultBox.appendChild(field);
+  handleFile(this.files[0]);
 });
 
-}
 
-/* ======================================
-EMPTY
-====================================== */
+// ========================================
+// HANDLE FILE
+// ========================================
 
-if (
-!sshText &&
-fieldCount === 0 &&
-!data.protections
-) {
+function handleFile(file) {
+  if (!file) return;
 
-const empty =
-  document.createElement("div");
+  const name = file.name.toLowerCase();
 
-empty.className =
-  "empty";
+  if (!name.endsWith(".hc") && !name.endsWith(".ehi")) {
+    selectedFile = null;
+    decryptBtn.disabled = true;
 
-empty.textContent =
-  "⚠️ Tidak ada data yang berhasil ditemukan.";
-
-resultBox.appendChild(empty);
-
-}
-}
-
-/* ========================================
-CREATE FIELD
-======================================== */
-
-function createField(
-key,
-title,
-value,
-isSSH = false
-) {
-
-const box =
-document.createElement("div");
-
-box.className =
-isSSH
-? "ssh-box"
-: "field";
-
-const header =
-document.createElement("div");
-
-header.className =
-isSSH
-? "ssh-header"
-: "field-header";
-
-const fieldTitle =
-document.createElement("div");
-
-fieldTitle.className =
-isSSH
-? "ssh-title"
-: "field-title";
-
-fieldTitle.textContent =
-title;
-
-const copyBtn =
-document.createElement("button");
-
-copyBtn.type =
-"button";
-
-copyBtn.className =
-"copy-btn";
-
-copyBtn.textContent =
-"COPY";
-
-copyBtn.addEventListener(
-"click",
-async () => {
-
-  await copyText(
-    value,
-    copyBtn
-  );
-
-}
-
-);
-
-header.appendChild(
-fieldTitle
-);
-
-header.appendChild(
-copyBtn
-);
-
-const valueBox =
-document.createElement("div");
-
-valueBox.className =
-isSSH
-? "ssh-value"
-: "field-value";
-
-valueBox.textContent =
-value;
-
-box.appendChild(
-header
-);
-
-box.appendChild(
-valueBox
-);
-
-return box;
-}
-
-/* ========================================
-COPY
-======================================== */
-
-async function copyText(
-text,
-button
-) {
-
-try {
-
-if (
-  navigator.clipboard &&
-  window.isSecureContext
-) {
-
-  await navigator.clipboard.writeText(
-    text
-  );
-
-} else {
-
-  const textarea =
-    document.createElement(
-      "textarea"
+    fileName.textContent = "";
+    showStatus(
+      "❌ Format tidak didukung. Pilih file .HC atau .EHI",
+      "error"
     );
 
-  textarea.value =
-    text;
+    return;
+  }
 
-  textarea.style.position =
-    "fixed";
+  selectedFile = file;
 
-  textarea.style.left =
-    "-9999px";
+  fileName.textContent =
+    `📄 ${file.name} • ${formatBytes(file.size)}`;
 
-  document.body.appendChild(
-    textarea
+  decryptBtn.disabled = false;
+
+  clearStatus();
+  resultBox.innerHTML = "";
+}
+
+
+// ========================================
+// DRAG & DROP
+// ========================================
+
+uploadBox.addEventListener("dragover", function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  uploadBox.classList.add("dragover");
+});
+
+uploadBox.addEventListener("dragleave", function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  uploadBox.classList.remove("dragover");
+});
+
+uploadBox.addEventListener("drop", function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  uploadBox.classList.remove("dragover");
+
+  const files = e.dataTransfer.files;
+
+  if (!files || !files.length) return;
+
+  handleFile(files[0]);
+});
+
+
+// ========================================
+// DECRYPT BUTTON
+// ========================================
+
+decryptBtn.addEventListener("click", async function () {
+  if (!selectedFile) {
+    showStatus("❌ Pilih file terlebih dahulu", "error");
+    return;
+  }
+
+  decryptBtn.disabled = true;
+
+  resultBox.innerHTML = "";
+
+  showStatus(
+    "⏳ Sedang membongkar config...",
+    "loading"
   );
 
-  textarea.focus();
+  try {
+    const formData = new FormData();
 
-  textarea.select();
+    formData.append("file", selectedFile);
 
-  document.execCommand(
-    "copy"
+    const response = await fetch("/api/decrypt", {
+      method: "POST",
+      body: formData
+    });
+
+    // Jangan langsung response.json()
+    // supaya error HTML dari server tidak menyebabkan
+    // Unexpected end of JSON input
+    const text = await response.text();
+
+    let data;
+
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      console.error("Response server:", text);
+
+      throw new Error(
+        "Server mengembalikan response yang tidak valid."
+      );
+    }
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.error ||
+        data.message ||
+        "Gagal membongkar config."
+      );
+    }
+
+    showStatus(
+      `✅ Berhasil membongkar ${data.format || getFormat(selectedFile.name)}`,
+      "success"
+    );
+
+    renderResult(data);
+
+  } catch (error) {
+    console.error(error);
+
+    showStatus(
+      `❌ ${error.message || "Terjadi kesalahan."}`,
+      "error"
+    );
+
+  } finally {
+    decryptBtn.disabled = false;
+  }
+});
+
+
+// ========================================
+// RENDER RESULT
+// ========================================
+
+function renderResult(data) {
+  resultBox.innerHTML = "";
+
+  if (!data) {
+    resultBox.innerHTML = `
+      <div class="empty">
+        ❌ Tidak ada data hasil decrypt.
+      </div>
+    `;
+    return;
+  }
+
+  const format = String(
+    data.format ||
+    getFormat(selectedFile?.name || "")
+  ).toUpperCase();
+
+  const config = data.config || {};
+  const protections = data.protections || {};
+
+  // ======================================
+  // RESULT TITLE
+  // ======================================
+
+  const title = document.createElement("div");
+
+  title.className = "result-title";
+
+  title.innerHTML = `
+    <span>📦</span>
+    <div>
+      <strong>HASIL CONFIG ${escapeHtml(format)}</strong>
+      <small>Data berhasil dibongkar</small>
+    </div>
+  `;
+
+  resultBox.appendChild(title);
+
+
+  // ======================================
+  // SSH FIELD
+  // ======================================
+
+  let sshValue = "";
+
+  if (typeof config.sshField === "string") {
+    sshValue = config.sshField;
+  }
+
+  if (!sshValue && typeof config.ssh === "string") {
+    sshValue = config.ssh;
+  }
+
+  if (
+    !sshValue &&
+    config.ssh &&
+    typeof config.ssh === "object"
+  ) {
+    sshValue = buildSSH(config.ssh);
+  }
+
+  if (sshValue) {
+    const sshBox = createSSHBox(sshValue);
+
+    resultBox.appendChild(sshBox);
+  }
+
+
+  // ======================================
+  // CONFIG FIELDS
+  // ======================================
+
+  const configEntries = Object.entries(config);
+
+  for (const [key, value] of configEntries) {
+
+    // SSH sudah ditampilkan khusus
+    if (
+      key === "sshField" ||
+      key === "ssh"
+    ) {
+      continue;
+    }
+
+    const field = createField(
+      key,
+      value
+    );
+
+    resultBox.appendChild(field);
+  }
+
+
+  // ======================================
+  // PROTECTION FIELDS
+  // ======================================
+
+  const protectionEntries =
+    Object.entries(protections);
+
+  if (protectionEntries.length > 0) {
+
+    const protectionTitle =
+      document.createElement("div");
+
+    protectionTitle.className =
+      "protection-title";
+
+    protectionTitle.innerHTML = `
+      <span>🛡️</span>
+      <strong>PROTECTION</strong>
+    `;
+
+    resultBox.appendChild(protectionTitle);
+
+    for (const [key, value] of protectionEntries) {
+
+      const field = createField(
+        key,
+        value
+      );
+
+      resultBox.appendChild(field);
+    }
+  }
+
+
+  // ======================================
+  // EMPTY RESULT
+  // ======================================
+
+  if (
+    configEntries.length === 0 &&
+    protectionEntries.length === 0 &&
+    !sshValue
+  ) {
+    resultBox.innerHTML += `
+      <div class="empty">
+        ⚠️ Config berhasil diproses,
+        tetapi tidak ada field yang dapat ditampilkan.
+      </div>
+    `;
+  }
+}
+
+
+// ========================================
+// CREATE NORMAL FIELD
+// ========================================
+
+function createField(key, value) {
+  const field = document.createElement("div");
+
+  field.className = "field";
+
+  const header = document.createElement("div");
+
+  header.className = "field-header";
+
+  const title = document.createElement("div");
+
+  title.className = "field-title";
+
+  title.textContent = prettyName(key);
+
+  const copyBtn = createCopyButton(
+    "COPY",
+    () => getCopyValue(value)
   );
 
-  textarea.remove();
+  header.appendChild(title);
+  header.appendChild(copyBtn);
+
+  const valueBox = document.createElement("div");
+
+  valueBox.className = "field-value";
+
+  valueBox.textContent =
+    formatValue(value);
+
+  field.appendChild(header);
+  field.appendChild(valueBox);
+
+  return field;
 }
 
 
-const oldText =
-  button.textContent;
+// ========================================
+// CREATE SSH BOX
+// ========================================
 
-button.textContent =
-  "COPIED ✓";
+function createSSHBox(value) {
+  const box = document.createElement("div");
 
-button.classList.add(
-  "copied"
-);
+  box.className = "ssh-box";
 
+  const header = document.createElement("div");
 
-setTimeout(() => {
+  header.className = "ssh-header";
 
-  button.textContent =
-    oldText;
+  const title = document.createElement("div");
 
-  button.classList.remove(
-    "copied"
+  title.className = "ssh-title";
+
+  title.textContent = "SSH";
+
+  const copyBtn = createCopyButton(
+    "COPY",
+    () => value
   );
 
-}, 1500);
+  header.appendChild(title);
+  header.appendChild(copyBtn);
 
-} catch (error) {
+  const valueBox = document.createElement("div");
 
-console.error(
-  "Copy error:",
-  error
-);
+  valueBox.className = "ssh-value";
 
-button.textContent =
-  "FAILED";
+  valueBox.textContent = value;
 
-setTimeout(() => {
+  box.appendChild(header);
+  box.appendChild(valueBox);
 
-  button.textContent =
-    "COPY";
-
-}, 1500);
-
-}
+  return box;
 }
 
-/* ========================================
-PRETTY NAME
-======================================== */
 
-function prettyName(key) {
+// ========================================
+// COPY BUTTON
+// ========================================
 
-const names = {
+function createCopyButton(label, getValue) {
+  const button = document.createElement("button");
 
-payload:
-  "📡 PAYLOAD",
+  button.type = "button";
 
-proxy:
-  "🌐 PROXY",
+  button.className = "copy-btn";
 
-sni:
-  "🔗 SNI",
+  button.textContent = label;
 
-notes:
-  "📝 NOTES",
+  button.addEventListener("click", async function (e) {
+    e.preventDefault();
+    e.stopPropagation();
 
-ovpnConfig:
-  "📄 OVPN CONFIG",
+    let value = "";
 
-ovpnUserAndPass:
-  "🔐 OVPN USER & PASSWORD",
+    try {
+      value = getValue();
+    } catch (err) {
+      console.error(err);
+      value = "";
+    }
 
-unlockUserAndPass:
-  "🔓 UNLOCK USER & PASSWORD",
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      value = "";
+    }
 
-unlockUserAndPass2:
-  "🔓 UNLOCK USER & PASSWORD 2",
+    value = String(value);
 
-name:
-  "🏷️ NAME",
+    if (!value.trim()) {
+      showStatus(
+        "⚠️ Field kosong, tidak ada yang bisa di-copy.",
+        "error"
+      );
+      return;
+    }
 
-expiryTime:
-  "⏰ EXPIRY TIME",
+    const success = await copyText(value);
 
-version:
-  "📦 VERSION",
+    if (success) {
+      const oldText = button.textContent;
 
-connectionMode:
-  "🔌 CONNECTION MODE",
+      button.textContent = "✓ COPIED";
 
-dnsResolver:
-  "🌍 DNS RESOLVER",
+      button.classList.add("copied");
 
-slowdnsServer:
-  "🐌 SLOWDNS SERVER",
+      setTimeout(() => {
+        button.textContent = oldText;
+        button.classList.remove("copied");
+      }, 1500);
+    } else {
+      showStatus(
+        "❌ Gagal menyalin ke clipboard.",
+        "error"
+      );
+    }
+  });
 
-slowdnsPublickey:
-  "🔑 SLOWDNS PUBLIC KEY",
-
-v2rayConfig:
-  "🚀 V2RAY CONFIG",
-
-cloudconfig:
-  "☁️ CLOUD CONFIG",
-
-psiphon:
-  "🛡️ PSIPHON",
-
-blockArea:
-  "📍 BLOCK AREA",
-
-blockedByHwid:
-  "🔒 BLOCKED BY HWID",
-
-blockedByPassword:
-  "🔒 BLOCKED BY PASSWORD",
-
-blockedByRoot:
-  "🔒 BLOCKED BY ROOT",
-
-lockAllConfig:
-  "🔒 LOCK ALL CONFIG",
-
-blockedByRoot:
-  "🔒 BLOCKED BY ROOT",
-
-blockedByHwid:
-  "🔒 BLOCKED BY HWID",
-
-mobileDataAndLockProvider:
-  "📱 MOBILE DATA & LOCK PROVIDER",
-
-unknown14:
-  "❓ UNKNOWN 14",
-
-unknown22:
-  "❓ UNKNOWN 22",
-
-extraSniffer:
-  "🔍 EXTRA SNIFFER",
-
-slowdnsEnabled:
-  "🐌 SLOWDNS ENABLED",
-
-v2rayEnabled:
-  "🚀 V2RAY ENABLED",
-
-psiphon2:
-  "🛡️ PSIPHON 2"
-
-};
-
-return (
-names[key] ||
-key
-.replace(
-/([A-Z])/g,
-" $1"
-)
-.replace(
-/^./,
-(char) =>
-char.toUpperCase()
-)
-);
+  return button;
 }
 
-/* ========================================
-FORMAT VALUE
-======================================== */
+
+// ========================================
+// COPY TEXT
+// ========================================
+
+async function copyText(text) {
+
+  // Modern Clipboard API
+  try {
+    if (
+      navigator.clipboard &&
+      window.isSecureContext
+    ) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {
+    console.warn(
+      "Clipboard API gagal:",
+      err
+    );
+  }
+
+  // Fallback untuk browser lama / HTTP
+  try {
+    const textarea =
+      document.createElement("textarea");
+
+    textarea.value = text;
+
+    textarea.style.position = "fixed";
+    textarea.style.left = "-999999px";
+    textarea.style.top = "-999999px";
+
+    textarea.setAttribute(
+      "readonly",
+      ""
+    );
+
+    document.body.appendChild(textarea);
+
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(
+      0,
+      textarea.value.length
+    );
+
+    const success =
+      document.execCommand("copy");
+
+    textarea.remove();
+
+    return success;
+
+  } catch (err) {
+    console.error(
+      "Fallback copy gagal:",
+      err
+    );
+
+    return false;
+  }
+}
+
+
+// ========================================
+// BUILD SSH
+// ========================================
+
+function buildSSH(ssh) {
+  if (!ssh || typeof ssh !== "object") {
+    return "";
+  }
+
+  const host =
+    ssh.host ||
+    ssh.server ||
+    ssh.ip ||
+    "";
+
+  const port =
+    ssh.port ||
+    "";
+
+  const username =
+    ssh.username ||
+    ssh.user ||
+    "";
+
+  const password =
+    ssh.password ||
+    ssh.pass ||
+    "";
+
+  if (
+    host &&
+    port &&
+    username &&
+    password
+  ) {
+    return `${host}:${port}@${username}:${password}`;
+  }
+
+  return [
+    host,
+    port,
+    username,
+    password
+  ]
+    .filter(Boolean)
+    .join(":");
+}
+
+
+// ========================================
+// FORMAT VALUE
+// ========================================
 
 function formatValue(value) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
 
-if (
-typeof value === "object" &&
-value !== null
-) {
+  if (typeof value === "string") {
+    return value;
+  }
 
-try {
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
 
-  return JSON.stringify(
-    value,
-    null,
-    2
+  try {
+    return JSON.stringify(
+      value,
+      null,
+      2
+    );
+  } catch (err) {
+    return String(value);
+  }
+}
+
+
+// ========================================
+// VALUE UNTUK COPY
+// ========================================
+
+function getCopyValue(value) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(
+      value,
+      null,
+      2
+    );
+  } catch (err) {
+    return String(value);
+  }
+}
+
+
+// ========================================
+// PRETTY FIELD NAME
+// ========================================
+
+function prettyName(key) {
+  const names = {
+    payload: "Payload",
+    proxy: "Proxy",
+    lockAllConfig: "Lock All Config",
+    blockedByRoot: "Blocked By Root",
+    expiryTime: "Expiry Time",
+    noteEnabled: "Note Enabled",
+    notes: "Notes",
+    sshField: "SSH",
+    mobileDataAndLockProvider:
+      "Mobile Data & Lock Provider",
+    unlockUserAndPass:
+      "Unlock User & Password",
+    ovpnConfig: "OVPN Config",
+    ovpnUserAndPass:
+      "OVPN User & Password",
+    sni: "SNI",
+    unlockUserAndPass2:
+      "Unlock User & Password 2",
+    unknown14: "Unknown 14",
+    blockedByHwid: "Blocked By HWID",
+    cloudconfig: "Cloud Config",
+    psiphon: "Psiphon",
+    name: "Name",
+    blockArea: "Block Area",
+    connectionMode: "Connection Mode",
+    blockedByPassword:
+      "Blocked By Password",
+    unknown22: "Unknown 22",
+    extraSniffer: "Extra Sniffer",
+    psiphon2: "Psiphon 2",
+    v2rayEnabled: "V2Ray Enabled",
+    v2rayConfig: "V2Ray Config",
+    version: "Version",
+    slowdnsEnabled: "SlowDNS Enabled",
+    slowdnsServer: "SlowDNS Server",
+    slowdnsPublickey:
+      "SlowDNS Public Key",
+    dnsResolver: "DNS Resolver",
+
+    // EHI
+    configAesKey: "Config AES Key",
+    configIdentifier: "Config Identifier",
+    configSalt: "Config Salt",
+    configTimestamp: "Config Timestamp",
+    configExpiryTimestamp:
+      "Config Expiry Timestamp",
+    lockModes: "Lock Modes",
+    lockModesHash: "Lock Modes Hash",
+    configHwid: "Config HWID",
+    configLockMobileOperatorId:
+      "Config Mobile Operator ID",
+    configData: "Config Data",
+    configMessage: "Config Message",
+    overwriteServerData:
+      "Overwrite Server Data",
+    v2rRawJson: "V2Ray Raw JSON"
+  };
+
+  if (names[key]) {
+    return names[key];
+  }
+
+  return key
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, char =>
+      char.toUpperCase()
+    );
+}
+
+
+// ========================================
+// FORMAT FILE SIZE
+// ========================================
+
+function formatBytes(bytes) {
+  if (!bytes) {
+    return "0 B";
+  }
+
+  const units = [
+    "B",
+    "KB",
+    "MB",
+    "GB"
+  ];
+
+  const index = Math.floor(
+    Math.log(bytes) /
+    Math.log(1024)
   );
 
-} catch {
-
-  return String(value);
+  return (
+    parseFloat(
+      (bytes /
+        Math.pow(1024, index)
+      ).toFixed(2)
+    ) +
+    " " +
+    units[
+      Math.min(
+        index,
+        units.length - 1
+      )
+    ]
+  );
 }
 
+
+// ========================================
+// GET FORMAT
+// ========================================
+
+function getFormat(filename) {
+  if (!filename) {
+    return "CONFIG";
+  }
+
+  const name =
+    filename.toLowerCase();
+
+  if (name.endsWith(".hc")) {
+    return "HC";
+  }
+
+  if (name.endsWith(".ehi")) {
+    return "EHI";
+  }
+
+  return "CONFIG";
 }
 
-return String(value);
+
+// ========================================
+// STATUS
+// ========================================
+
+function showStatus(message, type) {
+  statusBox.textContent = message;
+
+  statusBox.className =
+    `status ${type || ""}`;
 }
 
-/* ========================================
-STATUS
-======================================== */
 
-function showStatus(
-message,
-type = ""
-) {
+function clearStatus() {
+  statusBox.textContent = "";
 
-statusBox.textContent =
-message;
-
-statusBox.className =
-"status " + type;
-
-statusBox.style.display =
-"block";
+  statusBox.className =
+    "status";
 }
+
+
+// ========================================
+// RESET FILE
+// ========================================
+
+function resetFile() {
+  selectedFile = null;
+
+  fileName.textContent = "";
+
+  decryptBtn.disabled = true;
+
+  resultBox.innerHTML = "";
+
+  clearStatus();
+}
+
+
+// ========================================
+// ESCAPE HTML
+// ========================================
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
+// ========================================
+// INITIAL STATE
+// ========================================
+
+decryptBtn.disabled = true;
+
+console.log(
+  "BONGKAR CONFIG HC + EHI siap."
+);
