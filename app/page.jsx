@@ -51,13 +51,13 @@ export default function DecryptorPage() {
       <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 md:p-8 backdrop-blur-md">
         
         <div className="text-center mb-6">
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-wider text-cyan-400">DARK TUNNEL DECRYPTOR</h1>
-          <p className="text-slate-400 text-xs md:text-sm mt-1">Unggah file config (.dark) untuk membongkar isi parameter di dalamnya.</p>
+          <h1 className="text-xl md:text-2xl font-extrabold tracking-wider text-cyan-400">VPN CONFIG DECRYPTOR</h1>
+          <p className="text-slate-400 text-xs md:text-sm mt-1">Support file: <span className="text-cyan-300 font-semibold">.dark</span> | <span className="text-cyan-300 font-semibold">.hc</span> | <span className="text-cyan-300 font-semibold">.ehi</span></p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Pilih File Konfigurasi (.dark)</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Pilih File Config (.dark / .hc / .ehi)</label>
             <input 
               type="file" 
               onChange={handleFileChange} 
@@ -69,7 +69,7 @@ export default function DecryptorPage() {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full py-3 px-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition duration-200 shadow-lg shadow-cyan-500/20 cursor-pointer disabled:opacity-50"
+            className="w-full py-3 px-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition duration-200 shadow-lg shadow-cyan-500/20 cursor-pointer disabled:opacity-50 text-sm"
           >
             {loading ? 'Sedang Memproses...' : 'Bongkar File (Decrypt)'}
           </button>
@@ -77,7 +77,7 @@ export default function DecryptorPage() {
 
         {loading && (
           <div className="text-center my-5">
-            <p className="text-cyan-400 animate-pulse text-xs font-medium">Mendekripsi file menggunakan backend serverless...</p>
+            <p className="text-cyan-400 animate-pulse text-xs font-medium">Mendekripsi parameter file...</p>
           </div>
         )}
 
