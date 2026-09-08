@@ -1,3 +1,8 @@
+/* =========================================================
+   BONGKAR CONFIG HC
+   FULL STYLE.CSS
+========================================================= */
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -8,16 +13,28 @@
   --bg: #050505;
   --panel: #0b0b0b;
   --panel2: #101010;
+  --panel3: #070707;
+
   --border: #242424;
+  --border2: #1b1b1b;
+
   --text: #f5f5f5;
   --muted: #777;
+  --muted2: #555;
+
   --green: #00ff88;
-  --green-dark: #155d3b;
+  --green2: #00c96b;
+
   --red: #ff4545;
 }
 
+/* =========================================================
+   BODY
+========================================================= */
+
 html {
-  background: #050505;
+  background: var(--bg);
+  scroll-behavior: smooth;
 }
 
 body {
@@ -26,7 +43,7 @@ body {
   background:
     radial-gradient(
       circle at top,
-      #101a15 0,
+      #101a15 0%,
       #050505 38%,
       #050505 100%
     );
@@ -42,19 +59,24 @@ body {
     sans-serif;
 
   padding: 0 16px;
+
+  overflow-x: hidden;
 }
 
-/* =========================
+/* =========================================================
    BACKGROUND GRID
-========================= */
+========================================================= */
 
 body::before {
   content: "";
 
   position: fixed;
+
   inset: 0;
 
   pointer-events: none;
+
+  z-index: -1;
 
   background-image:
     linear-gradient(
@@ -67,14 +89,12 @@ body::before {
       transparent 1px
     );
 
-  background-size: 34px 34px;
-
-  z-index: -1;
+  background-size: 40px 40px;
 }
 
-/* =========================
-   CONTAINER
-========================= */
+/* =========================================================
+   MAIN CONTAINER
+========================================================= */
 
 .container {
   width: min(920px, 100%);
@@ -84,9 +104,9 @@ body::before {
   padding: 70px 0 45px;
 }
 
-/* =========================
+/* =========================================================
    HEADER
-========================= */
+========================================================= */
 
 .header {
   text-align: center;
@@ -107,20 +127,27 @@ body::before {
 
   border-radius: 18px;
 
-  background: rgba(0,255,136,.025);
+  background:
+    rgba(0,255,136,.025);
+
+  color: var(--green);
 
   font-size: 38px;
 
   box-shadow:
-    0 0 25px rgba(0,255,136,.13);
+    0 0 18px rgba(0,255,136,.15);
 }
 
 .header h1 {
   color: #f5f5f5;
 
-  font-size: clamp(34px, 7vw, 65px);
+  font-size: clamp(
+    35px,
+    7vw,
+    65px
+  );
 
-  line-height: 1;
+  line-height: .98;
 
   letter-spacing: -3px;
 
@@ -128,40 +155,49 @@ body::before {
 }
 
 .header p {
-  margin-top: 22px;
-
   color: #858585;
 
+  margin-top: 22px;
+
   font-size: 14px;
+
+  line-height: 1.6;
 
   letter-spacing: 1.5px;
 }
 
-/* =========================
+/* =========================================================
    UPLOAD CARD
-========================= */
+========================================================= */
 
 .upload-card {
-  background: rgba(11,11,11,.92);
-
-  border: 1px solid var(--border);
-
-  border-radius: 14px;
+  width: 100%;
 
   padding: 25px;
 
   margin-bottom: 18px;
 
+  background:
+    rgba(11,11,11,.92);
+
+  border: 1px solid var(--border);
+
+  border-radius: 14px;
+
   box-shadow:
     0 20px 50px rgba(0,0,0,.25);
 }
 
-/* =========================
+/* =========================================================
    UPLOAD BOX
-========================= */
+========================================================= */
 
 .upload-box {
+  width: 100%;
+
   min-height: 350px;
+
+  padding: 25px;
 
   border: 1px dashed #333;
 
@@ -179,7 +215,10 @@ body::before {
 
   cursor: pointer;
 
-  transition: .2s;
+  transition:
+    border-color .2s ease,
+    background .2s ease,
+    box-shadow .2s ease;
 }
 
 .upload-box:hover {
@@ -187,55 +226,86 @@ body::before {
 
   background:
     rgba(0,255,136,.025);
+
+  box-shadow:
+    inset 0 0 30px rgba(0,255,136,.02);
 }
+
+.upload-box.dragging {
+  border-color: var(--green);
+
+  background:
+    rgba(0,255,136,.035);
+
+  box-shadow:
+    0 0 25px rgba(0,255,136,.08);
+}
+
+/* =========================================================
+   UPLOAD ICON
+========================================================= */
 
 .upload-icon {
   width: 64px;
   height: 64px;
 
+  margin-bottom: 22px;
+
   display: grid;
   place-items: center;
+
+  background: #080808;
 
   border: 1px solid #333;
 
   border-radius: 12px;
 
-  background: #080808;
-
   font-size: 30px;
-
-  margin-bottom: 22px;
 }
 
+/* =========================================================
+   UPLOAD TITLE
+========================================================= */
+
 .upload-box h2 {
+  color: #f5f5f5;
+
   font-size: 18px;
 
-  font-weight: 700;
+  line-height: 1.3;
 
-  margin-bottom: 10px;
+  font-weight: 700;
 }
 
 .upload-box p {
   color: #777;
 
+  margin-top: 10px;
+
   font-size: 13px;
+
+  line-height: 1.5;
 }
+
+/* =========================================================
+   FORMAT
+========================================================= */
 
 .format {
   display: inline-block;
 
   margin-top: 18px;
 
-  padding: 7px 12px;
-
-  border: 1px solid #1e4c37;
-
-  border-radius: 6px;
+  padding: 8px 13px;
 
   color: var(--green);
 
   background:
-    rgba(0,255,136,.04);
+    rgba(0,255,136,.035);
+
+  border: 1px solid #1e4c37;
+
+  border-radius: 7px;
 
   font-family: monospace;
 
@@ -244,9 +314,17 @@ body::before {
   letter-spacing: 1.5px;
 }
 
+/* =========================================================
+   FILE INPUT
+========================================================= */
+
 #fileInput {
   display: none;
 }
+
+/* =========================================================
+   FILE NAME
+========================================================= */
 
 .file-name {
   max-width: 90%;
@@ -259,16 +337,21 @@ body::before {
 
   font-size: 12px;
 
+  line-height: 1.5;
+
   white-space: nowrap;
 
   overflow: hidden;
 
   text-overflow: ellipsis;
+
+  text-shadow:
+    0 0 8px rgba(0,255,136,.12);
 }
 
-/* =========================
-   BONGKAR BUTTON
-========================= */
+/* =========================================================
+   DECRYPT BUTTON
+========================================================= */
 
 .decrypt-btn {
   width: 100%;
@@ -285,6 +368,8 @@ body::before {
 
   color: #001b0d;
 
+  font-family: inherit;
+
   font-size: 11px;
 
   font-weight: 900;
@@ -293,7 +378,10 @@ body::before {
 
   cursor: pointer;
 
-  transition: .2s;
+  transition:
+    transform .2s ease,
+    box-shadow .2s ease,
+    background .2s ease;
 }
 
 .decrypt-btn:hover:not(:disabled) {
@@ -301,6 +389,10 @@ body::before {
 
   box-shadow:
     0 0 30px rgba(0,255,136,.22);
+}
+
+.decrypt-btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .decrypt-btn:disabled {
@@ -311,24 +403,32 @@ body::before {
   color: #555;
 
   cursor: not-allowed;
+
+  box-shadow: none;
 }
 
-/* =========================
+/* =========================================================
    STATUS
-========================= */
+========================================================= */
 
 .status {
+  width: 100%;
+
   min-height: 58px;
 
   margin-bottom: 18px;
 
   padding: 17px 18px;
 
+  display: flex;
+
+  align-items: center;
+
+  background: #090909;
+
   border: 1px solid #191919;
 
   border-radius: 10px;
-
-  background: #090909;
 
   color: #aaa;
 
@@ -346,7 +446,7 @@ body::before {
 .status.success {
   color: var(--green);
 
-  border-color: var(--green-dark);
+  border-color: #155d3b;
 
   background:
     rgba(0,255,136,.025);
@@ -361,221 +461,233 @@ body::before {
     rgba(255,69,69,.025);
 }
 
-/* =========================
-   RESULT CARD
-========================= */
+/* =========================================================
+   RESULT AREA
+========================================================= */
 
 .result {
-  display: none;
-
   width: 100%;
+
+  margin-bottom: 30px;
+
+  color: var(--text);
+
+  text-align: left;
+
+  animation:
+    resultAppear .3s ease;
+}
+
+/*
+   Kalau kosong jangan tampil
+*/
+
+.result:empty {
+  display: none;
+}
+
+/* =========================================================
+   HASIL CONFIG TITLE
+========================================================= */
+
+.result-title {
+  margin-bottom: 20px;
+
+  color: #f5f5f5;
+
+  font-size: 28px;
+
+  line-height: 1.2;
+
+  font-weight: 800;
+
+  letter-spacing: -0.5px;
+}
+
+/* =========================================================
+   RESULT CARD / WADAH PER CONFIG
+========================================================= */
+
+.config-item {
+  width: 100%;
+
+  margin-bottom: 16px;
 
   background:
     rgba(11,11,11,.96);
 
-  border: 1px solid var(--border);
+  border: 1px solid #202020;
 
-  border-radius: 14px;
+  border-radius: 18px;
 
-  padding: 25px;
-
-  margin-bottom: 25px;
-
-  text-align: left;
-
-  animation: appear .3s ease;
+  overflow: hidden;
 
   box-shadow:
-    0 20px 50px rgba(0,0,0,.25);
+    0 10px 30px rgba(0,0,0,.18);
+
+  transition:
+    border-color .2s ease,
+    box-shadow .2s ease;
 }
 
-.result:not(:empty) {
-  display: block;
+.config-item:hover {
+  border-color: #303030;
+
+  box-shadow:
+    0 12px 35px rgba(0,0,0,.25);
 }
 
-/* =========================
-   RESULT TITLE
-========================= */
+/* =========================================================
+   CONFIG HEADER
+========================================================= */
 
-.result::before {
-  content: "ANALYSIS RESULT";
+.config-header {
+  min-height: 58px;
 
-  display: block;
+  padding: 0 18px;
 
-  color: var(--green);
+  display: flex;
 
-  font-size: 12px;
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  background:
+    #101010;
+
+  border-bottom: 1px solid #202020;
+}
+
+/* =========================================================
+   CONFIG NAME
+========================================================= */
+
+.config-name {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  color: #f5f5f5;
+
+  font-size: 14px;
+
+  line-height: 1.3;
+
+  font-weight: 700;
+}
+
+/* =========================================================
+   COPY BUTTON
+========================================================= */
+
+.config-copy {
+  flex-shrink: 0;
+
+  height: 38px;
+
+  padding: 0 15px;
+
+  border: 1px solid #292929;
+
+  border-radius: 9px;
+
+  background: #151515;
+
+  color: #aaa;
+
+  font-family: inherit;
+
+  font-size: 9px;
 
   font-weight: 800;
 
-  letter-spacing: 1.8px;
+  letter-spacing: 1px;
 
-  padding-bottom: 15px;
+  cursor: pointer;
 
-  margin-bottom: 20px;
-
-  border-bottom: 1px solid #191919;
+  transition:
+    color .2s ease,
+    border-color .2s ease,
+    background .2s ease;
 }
 
-/* =========================
-   RESULT DEFAULT TEXT
-========================= */
+.config-copy:hover {
+  color: var(--green);
 
-.result {
-  color: #ddd;
+  border-color: #1e4c37;
 
-  font-size: 13px;
+  background:
+    rgba(0,255,136,.04);
+}
 
-  line-height: 1.7;
+.config-copy:active {
+  transform: scale(.97);
+}
+
+/* =========================================================
+   CONFIG VALUE
+========================================================= */
+
+.config-value {
+  width: 100%;
+
+  padding: 18px;
+
+  background:
+    #070707;
+
+  color: #bcefd3;
+
+  font-family: monospace;
+
+  font-size: 12px;
+
+  line-height: 1.8;
+
+  white-space: pre-wrap;
 
   word-break: break-word;
+
+  overflow-wrap: anywhere;
 }
 
-/* =========================
-   RESULT HEADINGS
-========================= */
+/* =========================================================
+   PAYLOAD
+========================================================= */
+
+.config-value.payload {
+  max-height: 420px;
+
+  overflow-y: auto;
+
+  scrollbar-width: thin;
+}
+
+/* =========================================================
+   GENERIC RESULT ELEMENTS
+========================================================= */
 
 .result h1,
 .result h2,
 .result h3,
 .result h4 {
   color: #f5f5f5;
-
-  font-size: 17px;
-
-  font-weight: 700;
-
-  margin: 18px 0 7px;
 }
-
-.result h1:first-child,
-.result h2:first-child,
-.result h3:first-child,
-.result h4:first-child {
-  margin-top: 0;
-}
-
-/* =========================
-   RESULT LABEL
-========================= */
-
-.result strong {
-  display: inline-block;
-
-  color: var(--green);
-
-  font-size: 12px;
-
-  font-weight: 700;
-
-  letter-spacing: .5px;
-
-  margin-top: 13px;
-}
-
-/* =========================
-   RESULT VALUE
-========================= */
-
-.result .value {
-  display: block;
-
-  margin-top: 5px;
-
-  padding: 10px 12px;
-
-  background: #050505;
-
-  border: 1px solid #1d1d1d;
-
-  border-radius: 7px;
-
-  color: #ddd;
-
-  font-family: monospace;
-
-  font-size: 11px;
-
-  line-height: 1.7;
-
-  word-break: break-word;
-}
-
-/* =========================
-   RESULT PARAGRAPH
-========================= */
-
-.result p {
-  color: #bbb;
-
-  font-size: 12px;
-
-  line-height: 1.7;
-
-  margin: 5px 0;
-}
-
-/* =========================
-   RESULT COPY BUTTON
-========================= */
-
-.result button {
-  height: 32px;
-
-  padding: 0 12px;
-
-  margin: 5px 0 8px;
-
-  border: 1px solid #292929;
-
-  border-radius: 6px;
-
-  background: #111;
-
-  color: #aaa;
-
-  cursor: pointer;
-
-  font-family: inherit;
-
-  font-size: 9px;
-
-  font-weight: 700;
-
-  letter-spacing: 1px;
-
-  transition: .2s;
-}
-
-.result button:hover {
-  border-color: var(--green);
-
-  color: var(--green);
-
-  background:
-    rgba(0,255,136,.04);
-}
-
-/* =========================
-   RESULT PRE
-========================= */
 
 .result pre {
   width: 100%;
 
-  max-height: 600px;
-
-  overflow: auto;
-
   padding: 16px;
-
-  margin-top: 10px;
 
   background: #050505;
 
   border: 1px solid #1d1d1d;
 
-  border-radius: 8px;
+  border-radius: 9px;
 
   color: #bcefd3;
 
@@ -588,32 +700,47 @@ body::before {
   white-space: pre-wrap;
 
   word-break: break-word;
-}
 
-/* =========================
-   RESULT CODE
-========================= */
+  overflow: auto;
+}
 
 .result code {
   color: #bcefd3;
 
   font-family: monospace;
 
-  font-size: 11px;
-
   white-space: pre-wrap;
 
   word-break: break-word;
 }
 
-/* =========================
-   INFO
-========================= */
+/* =========================================================
+   FALLBACK BUTTON
+========================================================= */
+
+.result button {
+  font-family: inherit;
+}
+
+/* =========================================================
+   OLD RESULT FORMAT
+   Kalau app.js masih menghasilkan HTML sederhana
+========================================================= */
+
+.result > div:not(.config-item) {
+  color: #ddd;
+}
+
+/* =========================================================
+   FOOTER
+========================================================= */
 
 footer {
-  border-top: 1px solid #181818;
+  width: 100%;
 
   padding: 25px 0 35px;
+
+  border-top: 1px solid #181818;
 
   display: flex;
 
@@ -627,6 +754,8 @@ footer {
 
   font-size: 9px;
 
+  line-height: 1.5;
+
   letter-spacing: 1.5px;
 
   text-align: center;
@@ -638,9 +767,9 @@ footer span {
   opacity: .6;
 }
 
-/* =========================
+/* =========================================================
    SCROLLBAR
-========================= */
+========================================================= */
 
 ::-webkit-scrollbar {
   width: 7px;
@@ -661,11 +790,12 @@ footer span {
   background: #3a3a3a;
 }
 
-/* =========================
+/* =========================================================
    ANIMATION
-========================= */
+========================================================= */
 
-@keyframes appear {
+@keyframes resultAppear {
+
   from {
     opacity: 0;
 
@@ -679,11 +809,12 @@ footer span {
     transform:
       translateY(0);
   }
+
 }
 
-/* =========================
+/* =========================================================
    MOBILE
-========================= */
+========================================================= */
 
 @media (max-width: 650px) {
 
@@ -696,7 +827,7 @@ footer span {
   }
 
   .header {
-    margin-bottom: 28px;
+    margin-bottom: 30px;
   }
 
   .logo {
@@ -722,196 +853,64 @@ footer span {
 
   .upload-card {
     padding: 17px;
+
+    border-radius: 14px;
   }
 
   .upload-box {
     min-height: 350px;
+
+    padding: 20px;
+  }
+
+  .upload-icon {
+    width: 60px;
+    height: 60px;
+
+    font-size: 27px;
+
+    margin-bottom: 20px;
+  }
+
+  .upload-box h2 {
+    font-size: 17px;
+  }
+
+  .upload-box p {
+    font-size: 12px;
   }
 
   .decrypt-btn {
     height: 54px;
   }
 
-  .result {
-    padding: 17px;
+  .status {
+    min-height: 58px;
+
+    padding: 15px;
+
+    font-size: 11px;
   }
 
-  .result h1,
-  .result h2,
-  .result h3,
-  .result h4 {
-    font-size: 15px;
-  }
-
-  .result {
-    font-size: 12px;
-  }
-
-  .result pre,
-  .result code {
-    font-size: 10px;
-
-    padding: 13px;
-  }
-
-  footer {
-    flex-direction: column;
-
-    gap: 8px;
-  }
-}
-/* =========================
-   HASIL CONFIG
-========================= */
-
-.result {
-  display: block;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  margin: 0 0 30px;
-  box-shadow: none;
-  animation: appear .3s ease;
-}
-
-.result:empty {
-  display: none;
-}
-
-/* Judul HASIL CONFIG */
-.result-title {
-  color: #f5f5f5;
-  font-size: 28px;
-  font-weight: 800;
-  margin: 0 0 20px;
-}
-
-/* =========================
-   SETIAP ITEM CONFIG
-========================= */
-
-.config-item {
-  width: 100%;
-  background: #0b0b0b;
-  border: 1px solid #202020;
-  border-radius: 18px;
-  overflow: hidden;
-  margin-bottom: 16px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.18);
-}
-
-/* HEADER ITEM */
-
-.config-header {
-  min-height: 58px;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  padding: 0 18px;
-
-  background: #101010;
-
-  border-bottom: 1px solid #202020;
-}
-
-.config-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  color: #f5f5f5;
-
-  font-size: 14px;
-  font-weight: 700;
-}
-
-/* =========================
-   COPY BUTTON
-========================= */
-
-.config-copy {
-  height: 38px;
-
-  padding: 0 15px;
-
-  border: 1px solid #222;
-  border-radius: 9px;
-
-  background: #151515;
-
-  color: #aaa;
-
-  font-size: 10px;
-  font-weight: 800;
-
-  letter-spacing: 1px;
-
-  cursor: pointer;
-
-  transition: .2s;
-}
-
-.config-copy:hover {
-  color: var(--green);
-
-  border-color: #1e4c37;
-
-  background: rgba(0,255,136,.04);
-}
-
-/* =========================
-   VALUE
-========================= */
-
-.config-value {
-  padding: 18px;
-
-  background: #070707;
-
-  color: #bcefd3;
-
-  font-family: monospace;
-
-  font-size: 12px;
-
-  line-height: 1.8;
-
-  white-space: pre-wrap;
-
-  word-break: break-word;
-
-  overflow-x: auto;
-}
-
-/* =========================
-   VALUE YANG PANJANG
-========================= */
-
-.config-value.payload {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-/* =========================
-   MOBILE
-========================= */
-
-@media (max-width: 650px) {
+  /* =====================
+     RESULT MOBILE
+  ===================== */
 
   .result-title {
     font-size: 25px;
+
     margin-bottom: 18px;
   }
 
   .config-item {
-    border-radius: 16px;
     margin-bottom: 14px;
+
+    border-radius: 16px;
   }
 
   .config-header {
     min-height: 56px;
+
     padding: 0 14px;
   }
 
@@ -921,7 +920,9 @@ footer span {
 
   .config-copy {
     height: 36px;
+
     padding: 0 13px;
+
     font-size: 9px;
   }
 
@@ -931,5 +932,56 @@ footer span {
     font-size: 10px;
 
     line-height: 1.8;
+  }
+
+  .result pre {
+    padding: 13px;
+
+    font-size: 10px;
+  }
+
+  footer {
+    flex-direction: column;
+
+    gap: 8px;
+  }
+}
+
+/* =========================================================
+   SMALL PHONE
+========================================================= */
+
+@media (max-width: 380px) {
+
+  .header h1 {
+    font-size: 31px;
+
+    letter-spacing: -1.5px;
+  }
+
+  .upload-card {
+    padding: 13px;
+  }
+
+  .upload-box {
+    min-height: 320px;
+  }
+
+  .config-header {
+    padding: 0 12px;
+  }
+
+  .config-name {
+    font-size: 12px;
+  }
+
+  .config-copy {
+    padding: 0 10px;
+  }
+
+  .config-value {
+    padding: 14px;
+
+    font-size: 9px;
   }
 }
