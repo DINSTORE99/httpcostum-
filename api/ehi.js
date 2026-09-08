@@ -1,178 +1,139 @@
 const crypto = require("crypto")
 
-module.exports = async (req, res) => {
-  // =========================
-  // CORS
-  // =========================
+function json(res, status, data) {
+  res.status(status)
+  res.setHeader("Content-Type", "application/json")
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader(
     "Access-Control-Allow-Methods",
-    "GET, POST, OPTIONS"
+    "GET,POST,OPTIONS"
   )
   res.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type"
   )
 
-  // =========================
-  // OPTIONS
-  // =========================
-  if (req.method === "OPTIONS") {
-    return res.status(200).end()
-  }
+  return res.end(JSON.stringify(data))
+}
 
-  // =========================
-  // GET = TEST API
-  // =========================
-  if (req.method === "GET") {
-    return res.status(200).json({
-      success: true,
-      api: "EHI Decrypt API",
-      status: "online",
-      endpoint: "/api/ehi",
-      method: "POST",
-      version: "1.0.0"
-    })
-  }
-
-  // =========================
-  // ONLY POST
-  // =========================
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      success: false,
-      error: "Method Not Allowed"
-    })
-  }
-
+module.exports = async (req, res) => {
   try {
 
     // =========================
-    // AMBIL BODY
+    // CORS
     // =========================
-    let buffer
+    res.setHeader(
+      "Access-Control-Allow-Origin",
+      "*"
+    )
 
-    if (Buffer.isBuffer(req.body)) {
-      buffer = req.body
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET,POST,OPTIONS"
+    )
+
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type"
+    )
+
+    // =========================
+    // OPTIONS
+    // =========================
+    if (req.method === "OPTIONS") {
+      return res.status(200).end()
     }
 
-    else if (req.body instanceof Uint8Array) {
-      buffer = Buffer.from(req.body)
-    }
-
-    else if (typeof req.body === "string") {
-      buffer = Buffer.from(req.body, "base64")
-    }
-
-    else {
-      return res.status(400).json({
-        success: false,
-        error: "Body harus berupa file EHI"
+    // =========================
+    // GET
+    // =========================
+    if (req.method === "GET") {
+      return json(res, 200, {
+        success: true,
+        status: "online",
+        name: "EHI Decrypt API",
+        version: "1.0.0",
+        endpoint: "/api/ehi",
+        methods: [
+          "GET",
+          "POST"
+        ]
       })
     }
 
     // =========================
-    // CEK FILE
+    // POST
     // =========================
-    if (!buffer.length) {
-      return res.status(400).json({
+    if (req.method !== "POST") {
+      return json(res, 405, {
         success: false,
-        error: "File EHI kosong"
+        error: "Method Not Allowed"
       })
     }
 
     // =========================
-    // BATAS FILE
+    // BODY
     // =========================
-    if (buffer.length > 4 * 1024 * 1024) {
-      return res.status(413).json({
+    let body = req.body
+
+    if (!body) {
+      return json(res, 400, {
+        success: false,
+        error: "Request body kosong"
+      })
+    }
+
+    if (Buffer.isBuffer(body)) {
+      // OK
+    } else if (body instanceof Uint8Array) {
+      body = Buffer.from(body)
+    } else {
+      return json(res, 400, {
+        success: false,
+        error: "Kirim file EHI sebagai application/octet-stream"
+      })
+    }
+
+    // =========================
+    // FILE SIZE
+    // =========================
+    if (body.length === 0) {
+      return json(res, 400, {
+        success: false,
+        error: "File kosong"
+      })
+    }
+
+    if (body.length > 4 * 1024 * 1024) {
+      return json(res, 413, {
         success: false,
         error: "File terlalu besar"
       })
     }
 
     // =========================
-    // INFO FILE
+    // HASH
     // =========================
     const sha256 = crypto
       .createHash("sha256")
-      .update(buffer)
+      .update(body)
       .digest("hex")
 
     // =========================
-    // BACA HEADER EHI
+    // RESPONSE
     // =========================
-    let offset = 0
-
-    if (buffer.length < 2) {
-      throw new Error("File EHI tidak valid")
-    }
-
-    const firstLength =
-      buffer.readUInt16BE(offset)
-
-    offset += 2
-
-    if (
-      firstLength < 0 ||
-      offset + firstLength * 2 > buffer.length
-    ) {
-      throw new Error("Header EHI rusak")
-    }
-
-    const type =
-      buffer
-        .subarray(
-          offset,
-          offset + firstLength * 2
-        )
-        .toString("utf16be")
-
-    offset += firstLength * 2
-
-    // skip 8 byte
-    offset += 8
-
-    if (offset + 2 > buffer.length) {
-      throw new Error("Header versi tidak ditemukan")
-    }
-
-    const secondLength =
-      buffer.readUInt16BE(offset)
-
-    offset += 2
-
-    if (
-      offset + secondLength * 2 > buffer.length
-    ) {
-      throw new Error("Versi EHI rusak")
-    }
-
-    const appVersion =
-      buffer
-        .subarray(
-          offset,
-          offset + secondLength * 2
-        )
-        .toString("utf16be")
-
-    return res.status(200).json({
+    return json(res, 200, {
       success: true,
 
-      api: "EHI Decrypt API",
+      status: "received",
 
       file: {
-        size: buffer.length,
+        size: body.length,
         sha256
       },
 
-      ehi: {
-        type,
-        appVersion
-      },
-
       message:
-        "File EHI berhasil diterima. Decryptor belum dijalankan."
+        "File EHI berhasil diterima oleh API."
     })
 
   } catch (error) {
@@ -182,9 +143,11 @@ module.exports = async (req, res) => {
       error
     )
 
-    return res.status(500).json({
+    return json(res, 500, {
       success: false,
-      error: error.message || "Internal Server Error"
+      error:
+        error?.message ||
+        "Internal Server Error"
     })
   }
 }
