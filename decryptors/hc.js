@@ -1,351 +1,171 @@
+"use strict";
+
 const crypto = require("crypto");
 const HC = require("../config/hc.keys");
 
 // ============================================================
-// BASIC HELPERS
+// HC HELPERS
 // ============================================================
 
 function hcCleanHex(value) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return "";
-  }
+  if (value === null || value === undefined) return "";
 
-  let clean = String(value)
+  return String(value)
+    .replace(/^0x/i, "")
     .replace(/[^0-9a-f]/gi, "");
-
-  if (!clean) {
-    return "";
-  }
-
-  if (clean.length % 2 !== 0) {
-    clean = "0" + clean;
-  }
-
-  return clean;
 }
 
 function hcIsHex(value) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return false;
-  }
+  if (!value || typeof value !== "string") return false;
 
-  const s = String(value);
+  const clean = hcCleanHex(value);
 
   return (
-    s.length >= 16 &&
-    s.length % 2 === 0 &&
-    /^[0-9a-f]+$/i.test(s)
+    clean.length > 0 &&
+    clean.length % 2 === 0 &&
+    /^[0-9a-f]+$/i.test(clean)
   );
 }
 
-// ============================================================
-// PRINTABLE
-// ============================================================
+function hcPrintable(value) {
+  if (value === null || value === undefined) return "";
 
-function hcPrintable(value, strict = false) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return false;
+  const text = Buffer.isBuffer(value)
+    ? value.toString("utf8")
+    : String(value);
+
+  return text
+    .replace(/\0/g, "")
+    .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, "");
+}
+
+function hcTryJson(value) {
+  if (value === null || value === undefined) {
+    return null;
   }
 
-  const s = String(value);
-
-  if (!s.length) {
-    return false;
+  if (typeof value === "object") {
+    return value;
   }
 
-  if (s.length < 4) {
-    return true;
+  if (typeof value !== "string") {
+    return null;
   }
 
-  let printable = 0;
+  const text = value.trim();
 
-  for (const ch of s) {
-    const code = ch.charCodeAt(0);
+  if (!text) return null;
 
-    if (
-      (code >= 32 && code <= 126) ||
-      code === 9 ||
-      code === 10 ||
-      code === 13
-    ) {
-      printable++;
-    }
-  }
+  try {
+    return JSON.parse(text);
+  } catch {}
 
-  return (
-    printable / s.length >
-    (strict ? 0.90 : 0.80)
-  );
+  return null;
 }
 
 // ============================================================
 // CHACHA20
 // ============================================================
 
-function hcRotl32(x, n) {
-  return (
-    (x << n) |
-    (x >>> (32 - n))
-  ) >>> 0;
-}
+function hcChaCha20(data, key, nonce, counter = 0) {
+  try {
+    const input = Buffer.isBuffer(data)
+      ? Buffer.from(data)
+      : Buffer.from(data);
 
-function hcQR(s, a, b, c, d) {
-  s[a] =
-    (s[a] + s[b]) >>> 0;
+    const k = Buffer.isBuffer(key)
+      ? Buffer.from(key)
+      : Buffer.from(key);
 
-  s[d] ^= s[a];
-  s[d] =
-    hcRotl32(s[d], 16);
+    const n = Buffer.isBuffer(nonce)
+      ? Buffer.from(nonce)
+      : Buffer.from(nonce);
 
-  s[c] =
-    (s[c] + s[d]) >>> 0;
+    if (k.length !== 32) {
+      return null;
+    }
 
-  s[b] ^= s[c];
-  s[b] =
-    hcRotl32(s[b], 12);
+    if (n.length !== 8) {
+      return null;
+    }
 
-  s[a] =
-    (s[a] + s[b]) >>> 0;
-
-  s[d] ^= s[a];
-  s[d] =
-    hcRotl32(s[d], 8);
-
-  s[c] =
-    (s[c] + s[d]) >>> 0;
-
-  s[b] ^= s[c];
-  s[b] =
-    hcRotl32(s[b], 7);
-}
-
-function hcChaCha20(
-  data,
-  key,
-  nonce,
-  counter = 0
-) {
-  if (!Buffer.isBuffer(data)) {
-    data = Buffer.from(data || "");
-  }
-
-  if (!Buffer.isBuffer(key)) {
-    key = Buffer.from(key || "");
-  }
-
-  if (!Buffer.isBuffer(nonce)) {
-    nonce = Buffer.from(nonce || "");
-  }
-
-  if (key.length !== 32) {
-    throw new Error(
-      "ChaCha20 key harus 32 byte"
+    const cipher = crypto.createCipheriv(
+      "chacha20",
+      k,
+      n
     );
-  }
 
-  if (nonce.length !== 8) {
-    throw new Error(
-      "ChaCha20 nonce harus 8 byte"
+    cipher.setAutoPadding(false);
+
+    const counterBuf = Buffer.alloc(4);
+
+    counterBuf.writeUInt32LE(
+      counter >>> 0,
+      0
     );
+
+    /*
+     * Node's chacha20 implementation expects
+     * an 8-byte nonce where the first 4 bytes
+     * contain the counter.
+     */
+    const iv = Buffer.concat([
+      counterBuf,
+      n
+    ]);
+
+    const c = crypto.createCipheriv(
+      "chacha20",
+      k,
+      iv
+    );
+
+    c.setAutoPadding(false);
+
+    return Buffer.concat([
+      c.update(input),
+      c.final()
+    ]);
+  } catch {
+    return null;
   }
-
-  const out =
-    Buffer.alloc(data.length);
-
-  for (
-    let offset = 0,
-      block = counter >>> 0;
-
-    offset < data.length;
-
-    offset += 64,
-      block++
-  ) {
-    const state =
-      new Uint32Array(16);
-
-    // "expand 32-byte k"
-    state[0] = 0x61707865;
-    state[1] = 0x3320646e;
-    state[2] = 0x79622d32;
-    state[3] = 0x6b206574;
-
-    for (let i = 0; i < 8; i++) {
-      state[4 + i] =
-        key.readUInt32LE(i * 4);
-    }
-
-    state[12] =
-      block >>> 0;
-
-    state[13] = 0;
-
-    state[14] =
-      nonce.readUInt32LE(0);
-
-    state[15] =
-      nonce.readUInt32LE(4);
-
-    const working =
-      new Uint32Array(state);
-
-    // 20 rounds
-    for (let i = 0; i < 10; i++) {
-      // Column
-      hcQR(
-        working,
-        0,
-        4,
-        8,
-        12
-      );
-
-      hcQR(
-        working,
-        1,
-        5,
-        9,
-        13
-      );
-
-      hcQR(
-        working,
-        2,
-        6,
-        10,
-        14
-      );
-
-      hcQR(
-        working,
-        3,
-        7,
-        11,
-        15
-      );
-
-      // Diagonal
-      hcQR(
-        working,
-        0,
-        5,
-        10,
-        15
-      );
-
-      hcQR(
-        working,
-        1,
-        6,
-        11,
-        12
-      );
-
-      hcQR(
-        working,
-        2,
-        7,
-        8,
-        13
-      );
-
-      hcQR(
-        working,
-        3,
-        4,
-        9,
-        14
-      );
-    }
-
-    const stream =
-      Buffer.alloc(64);
-
-    for (let i = 0; i < 16; i++) {
-      stream.writeUInt32LE(
-        (
-          working[i] +
-          state[i]
-        ) >>> 0,
-        i * 4
-      );
-    }
-
-    const length =
-      Math.min(
-        64,
-        data.length - offset
-      );
-
-    for (let i = 0; i < length; i++) {
-      out[offset + i] =
-        data[offset + i] ^
-        stream[i];
-    }
-  }
-
-  return out;
 }
 
 // ============================================================
 // ABC
 // ============================================================
 
-function hcABC(
-  raw,
-  key,
-  nonce = HC.nonce
-) {
+function hcABC(data) {
   try {
-    if (!raw) {
-      return "";
+    if (!Buffer.isBuffer(data)) {
+      data = Buffer.from(data);
     }
 
-    const hex =
-      hcCleanHex(raw);
-
-    if (!hex) {
-      return "";
-    }
-
-    if (hex.length % 2 !== 0) {
-      return "";
-    }
-
-    const data =
-      Buffer.from(hex, "hex");
-
-    // 16 byte trailing data
     if (data.length <= 16) {
-      return "";
+      return null;
     }
 
-    const ciphertext =
-      data.subarray(0, -16);
-
-    const decrypted =
-      hcChaCha20(
-        ciphertext,
-        key,
-        nonce,
-        1
-      );
-
-    return decrypted.toString(
-      "utf8"
+    const body = data.subarray(
+      0,
+      data.length - 16
     );
 
+    const key = Buffer.isBuffer(HC.abcKey)
+      ? HC.abcKey
+      : Buffer.from(HC.abcKey);
+
+    const nonce = Buffer.isBuffer(HC.abcNonce)
+      ? HC.abcNonce
+      : Buffer.from(HC.abcNonce);
+
+    return hcChaCha20(
+      body,
+      key,
+      nonce,
+      1
+    );
   } catch {
-    return "";
+    return null;
   }
 }
 
@@ -353,86 +173,36 @@ function hcABC(
 // Z3A
 // ============================================================
 
-function hcZ3A(
-  data,
-  iv
-) {
-  if (
-    data === null ||
-    data === undefined
-  ) {
-    return "";
+function hcZ3A(value) {
+  if (value === null || value === undefined) {
+    return null;
   }
 
-  const source =
-    String(data);
+  const text = String(value).trim();
 
-  const out = [];
+  /*
+   * Z3A style:
+   * number.number
+   */
+  const match = text.match(
+    /^(-?\d+)\.(-?\d+)$/
+  );
 
-  const regex =
-    /(-?\d+)\.(-?\d+)/g;
-
-  let match;
-
-  const ivNumber =
-    Number(iv);
-
-  if (!Number.isFinite(ivNumber)) {
-    return "";
+  if (!match) {
+    return null;
   }
 
-  while (
-    (match = regex.exec(source))
-  ) {
-    try {
-      const a =
-        Number(match[1]) -
-        ivNumber;
+  const a = Number(match[1]);
+  const b = Number(match[2]);
 
-      const b =
-        Number(match[2]) -
-        ivNumber;
-
-      if (
-        !Number.isFinite(a) ||
-        !Number.isFinite(b)
-      ) {
-        continue;
-      }
-
-      const divisor =
-        2 ** b;
-
-      if (
-        divisor === 0 ||
-        !Number.isFinite(divisor)
-      ) {
-        continue;
-      }
-
-      const value =
-        Math.floor(
-          a / divisor
-        );
-
-      out.push(
-        (
-          (value % 256) +
-          256
-        ) % 256
-      );
-
-    } catch {
-      // ignore invalid pair
-    }
+  if (!Number.isFinite(a) || !Number.isFinite(b)) {
+    return null;
   }
 
-  if (!out.length) {
-    return "";
-  }
-
-  return Buffer.from(out)
-    .toString("utf8");
+  return {
+    x: a,
+    y: b
+  };
 }
 
 // ============================================================
@@ -440,319 +210,162 @@ function hcZ3A(
 // ============================================================
 
 function hcBraille(value) {
-  try {
-    if (!value) {
-      return value;
-    }
-
-    const source =
-      String(value);
-
-    const alphabet =
-      String(HC.braille || "");
-
-    if (!alphabet.length) {
-      return value;
-    }
-
-    const out = [];
-
-    for (
-      let i = 0;
-      i + 1 < source.length;
-      i += 2
-    ) {
-      const a =
-        alphabet.indexOf(
-          source[i]
-        );
-
-      const b =
-        alphabet.indexOf(
-          source[i + 1]
-        );
-
-      if (
-        a < 0 ||
-        b < 0
-      ) {
-        return value;
-      }
-
-      out.push(
-        (a * 16 + b) & 255
-      );
-    }
-
-    return Buffer.from(out)
-      .toString("utf8");
-
-  } catch {
-    return value;
+  if (value === null || value === undefined) {
+    return null;
   }
+
+  const text = String(value);
+
+  if (!HC.braille) {
+    return null;
+  }
+
+  let result = "";
+
+  for (let i = 0; i < text.length; i += 2) {
+    const pair = text.slice(i, i + 2);
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        HC.braille,
+        pair
+      )
+    ) {
+      result += HC.braille[pair];
+    } else {
+      result += pair;
+    }
+  }
+
+  return result || null;
 }
 
 // ============================================================
 // CREDENTIALS
 // ============================================================
 
-function hcCredentials(
-  raw,
-  isSSH = false
-) {
-  if (
-    raw === null ||
-    raw === undefined ||
-    raw === ""
-  ) {
-    return raw;
+function hcCredentials(value) {
+  if (value === null || value === undefined) {
+    return null;
   }
 
-  let source =
-    String(raw);
+  const text = String(value).trim();
 
-  // SSH braille
-  if (
-    isSSH &&
-    source.length &&
-    HC.braille &&
-    HC.braille.includes(
-      source[0]
-    )
-  ) {
-    const decoded =
-      hcBraille(source);
+  if (!text) return null;
 
-    if (decoded) {
-      source = decoded;
+  /*
+   * SSH:
+   * host:port@username:password
+   */
+
+  const atIndex = text.indexOf("@");
+
+  if (atIndex !== -1) {
+    const server = text.slice(
+      0,
+      atIndex
+    );
+
+    const login = text.slice(
+      atIndex + 1
+    );
+
+    const serverMatch =
+      server.match(
+        /^(.+):(\d+)$/
+      );
+
+    if (serverMatch) {
+      const host = serverMatch[1];
+      const port = Number(serverMatch[2]);
+
+      const colon = login.indexOf(":");
+
+      if (colon !== -1) {
+        return {
+          host,
+          port,
+          username: login.slice(0, colon),
+          password: login.slice(colon + 1)
+        };
+      }
     }
   }
 
-  if (isSSH) {
-    /*
-     * host:port@username:password
-     */
-    const match =
-      source.match(
-        /^([^:@]+):(\d+)@(.+):(.+)$/
-      );
+  /*
+   * Normal:
+   * username:password
+   */
 
-    if (!match) {
-      return source;
-    }
+  const colon = text.indexOf(":");
 
-    const host =
-      match[1];
-
-    const port =
-      match[2];
-
-    const username =
-      match[3];
-
-    const password =
-      match[4];
-
-    const usernameIv =
-      (
-        username.match(
-          /-?\d+\.-?\d+/g
-        ) || []
-      ).length;
-
-    const passwordIv =
-      (
-        password.match(
-          /-?\d+\.-?\d+/g
-        ) || []
-      ).length;
-
-    const decodedUser =
-      hcZ3A(
-        username,
-        usernameIv
-      ) || username;
-
-    const decodedPass =
-      hcZ3A(
-        password,
-        passwordIv
-      ) || password;
-
-    return (
-      `${host}:${port}` +
-      `@${decodedUser}` +
-      `:${decodedPass}`
-    );
+  if (colon !== -1) {
+    return {
+      username: text.slice(0, colon),
+      password: text.slice(colon + 1)
+    };
   }
 
-  // Normal username:password
-  const match =
-    source.match(
-      /^([^:]+):(.+)$/
-    );
-
-  if (!match) {
-    return source;
-  }
-
-  const username =
-    match[1];
-
-  const password =
-    match[2];
-
-  const usernameIv =
-    (
-      username.match(
-        /-?\d+\.-?\d+/g
-      ) || []
-    ).length;
-
-  const passwordIv =
-    (
-      password.match(
-        /-?\d+\.-?\d+/g
-      ) || []
-    ).length;
-
-  const decodedUser =
-    hcZ3A(
-      username,
-      usernameIv
-    ) || username;
-
-  const decodedPass =
-    hcZ3A(
-      password,
-      passwordIv
-    ) || password;
-
-  return (
-    `${decodedUser}:${decodedPass}`
-  );
-}
-
-// ============================================================
-// BASE64
-// ============================================================
-
-function hcB64Decode(value) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return Buffer.alloc(0);
-  }
-
-  let source =
-    String(value)
-      .trim()
-      .replace(/\s+/g, "");
-
-  if (!source) {
-    return Buffer.alloc(0);
-  }
-
-  const remainder =
-    source.length % 4;
-
-  if (remainder) {
-    source +=
-      "=".repeat(
-        4 - remainder
-      );
-  }
-
-  try {
-    return Buffer.from(
-      source,
-      "base64"
-    );
-  } catch {
-    return Buffer.alloc(0);
-  }
+  return null;
 }
 
 // ============================================================
 // JKL
 // ============================================================
 
-function hcJKL(
-  input,
-  isNew = false
-) {
-  if (
-    input === null ||
-    input === undefined ||
-    input === ""
-  ) {
-    return input;
-  }
-
+function hcJKL(value) {
   try {
-    const key =
-      isNew
-        ? HC.jklNew
-        : HC.jklOld;
-
-    if (
-      !key ||
-      key.length < 20
-    ) {
-      return input;
+    if (value === null || value === undefined) {
+      return null;
     }
 
-    const data =
-      hcB64Decode(input);
+    let text = String(value).trim();
 
-    if (!data.length) {
-      return input;
+    if (!text) return null;
+
+    /*
+     * JKL bitwise transform
+     */
+    let transformed = "";
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+
+      const x =
+        ((c ^ 0x5a) +
+          ((i + 1) * 7)) &
+        0xff;
+
+      transformed += String.fromCharCode(x);
     }
 
-    for (
-      let i = 0;
-      i < data.length;
-      i++
-    ) {
-      const d =
-        data[i];
+    const candidates = [
+      text,
+      transformed
+    ];
 
-      const k =
-        key[i % 20];
+    for (const candidate of candidates) {
+      try {
+        const clean = candidate
+          .replace(/\s+/g, "");
 
-      const left =
-        (
-          ((d ^ 0xff) & 0xca) |
-          (d & 0x35)
-        );
+        if (!clean) continue;
 
-      const right =
-        (
-          ((k ^ 0xff) & 0xca) |
-          (k & 0x35)
-        );
+        const decoded =
+          Buffer.from(
+            clean,
+            "base64"
+          );
 
-      data[i] =
-        (left ^ right) & 0xff;
+        if (decoded.length > 0) {
+          return decoded;
+        }
+      } catch {}
     }
 
-    const decoded =
-      hcB64Decode(
-        data.toString("utf8")
-      );
-
-    if (!decoded.length) {
-      return input;
-    }
-
-    const result =
-      decoded.toString("utf8");
-
-    return result || input;
-
+    return null;
   } catch {
-    return input;
+    return null;
   }
 }
 
@@ -760,1014 +373,1150 @@ function hcJKL(
 // RST
 // ============================================================
 
-function hcRST(input) {
+function hcRST(value) {
   try {
-    if (!input) {
+    if (value === null || value === undefined) {
       return null;
     }
+
+    const text = String(value).trim();
+
+    if (!text) return null;
 
     const xorKey =
-      HC.rstXor;
+      Buffer.isBuffer(HC.rstXor)
+        ? HC.rstXor
+        : Buffer.from(
+            HC.rstXor || ""
+          );
 
-    if (
-      !xorKey ||
-      !xorKey.length
-    ) {
+    if (!xorKey.length) {
       return null;
     }
 
-    const source =
-      Buffer.from(
-        String(input),
-        "utf8"
-      );
+    const raw = Buffer.from(
+      text,
+      "utf8"
+    );
 
-    const x =
-      Buffer.alloc(
-        source.length
-      );
+    const xored = Buffer.alloc(
+      raw.length
+    );
 
-    for (
-      let i = 0;
-      i < source.length;
-      i++
-    ) {
-      x[i] =
-        source[i] ^
-        xorKey[
-          i % xorKey.length
-        ];
+    for (let i = 0; i < raw.length; i++) {
+      xored[i] =
+        raw[i] ^
+        xorKey[i % xorKey.length];
     }
 
-    const encrypted =
-      Buffer.from(
-        x.toString("utf8"),
-        "base64"
-      );
+    const candidates = [
+      xored,
+      raw
+    ];
 
-    if (!encrypted.length) {
-      return null;
-    }
-
-    const keys =
-      Array.isArray(HC.rstKeys)
-        ? HC.rstKeys
-        : [];
-
-    for (
-      const key of keys
-    ) {
+    for (const candidate of candidates) {
       try {
-        const keyBuffer =
-          Buffer.isBuffer(key)
-            ? key
-            : Buffer.from(
-                String(key),
-                "utf8"
-              );
+        const decoded =
+          Buffer.from(
+            candidate.toString("utf8")
+              .replace(/\s+/g, ""),
+            "base64"
+          );
 
-        if (
-          keyBuffer.length !== 16
-        ) {
+        if (!decoded.length) {
           continue;
         }
 
-        const decipher =
-          crypto.createDecipheriv(
-            "aes-128-ecb",
-            keyBuffer,
-            null
-          );
-
-        decipher.setAutoPadding(
-          true
-        );
-
-        const decrypted =
-          Buffer.concat([
-            decipher.update(
-              encrypted
-            ),
-            decipher.final()
-          ]);
-
-        const result =
-          decrypted.toString(
-            "utf8"
-          );
-
         if (
-          result.includes(
-            "[splitConfig]"
-          )
+          HC.rstKeys &&
+          Array.isArray(HC.rstKeys)
         ) {
-          return result;
+          for (const keyValue of HC.rstKeys) {
+            try {
+              const key =
+                Buffer.isBuffer(keyValue)
+                  ? keyValue
+                  : Buffer.from(
+                      keyValue
+                    );
+
+              if (key.length !== 16) {
+                continue;
+              }
+
+              const decipher =
+                crypto.createDecipheriv(
+                  "aes-128-ecb",
+                  key,
+                  null
+                );
+
+              decipher.setAutoPadding(true);
+
+              const plain =
+                Buffer.concat([
+                  decipher.update(decoded),
+                  decipher.final()
+                ]);
+
+              if (plain.length) {
+                return plain;
+              }
+            } catch {}
+          }
         }
 
-      } catch {
-        // Try next key
-      }
+        return decoded;
+      } catch {}
     }
 
+    return null;
   } catch {
-    // ignore
+    return null;
   }
-
-  return null;
 }
 
 // ============================================================
 // FIELD DECRYPT
 // ============================================================
 
-function hcDecryptField(
-  token,
-  nonce
-) {
+function hcDecryptField(value) {
   if (
-    token === null ||
-    token === undefined
+    value === null ||
+    value === undefined
   ) {
-    return token;
+    return value;
   }
 
-  const source =
-    String(token);
+  if (typeof value !== "string") {
+    return value;
+  }
 
-  if (
-    !source ||
-    [
-      "true",
-      "false",
-      "lifeTime",
-      "[splitPsiphon][splitPsiphon]"
-    ].includes(source) ||
-    source.startsWith("<")
-  ) {
-    return token;
+  const original = value.trim();
+
+  if (!original) {
+    return original;
   }
 
   const candidates = [];
 
-  // ----------------------------------------------------------
-  // HEX
-  // ----------------------------------------------------------
-
-  const clean =
-    hcCleanHex(source);
-
-  if (
-    hcIsHex(clean) &&
-    clean.length >= 32
-  ) {
+  if (hcIsHex(original)) {
     try {
       candidates.push(
         Buffer.from(
-          clean,
+          hcCleanHex(original),
           "hex"
         )
       );
     } catch {}
   }
 
-  // ----------------------------------------------------------
-  // LATIN1
-  // ----------------------------------------------------------
-
-  if (source.length > 16) {
-    try {
-      candidates.push(
-        Buffer.from(
-          source,
-          "latin1"
-        )
-      );
-    } catch {}
-  }
-
-  // ----------------------------------------------------------
-  // UTF8
-  // ----------------------------------------------------------
-
-  if (source.length > 16) {
-    try {
-      candidates.push(
-        Buffer.from(
-          source,
-          "utf8"
-        )
-      );
-    } catch {}
-  }
-
-  const seen =
-    new Set();
-
-  for (
-    const data of candidates
-  ) {
-    if (
-      !Buffer.isBuffer(data) ||
-      data.length <= 16
-    ) {
-      continue;
-    }
-
-    const identity =
-      data.toString("hex");
-
-    if (
-      seen.has(identity)
-    ) {
-      continue;
-    }
-
-    seen.add(identity);
-
-    const ciphertext =
-      data.subarray(0, -16);
-
-    for (
-      const key of HC.keys || []
-    ) {
-      try {
-        if (
-          !Buffer.isBuffer(key) ||
-          key.length !== 32
-        ) {
-          continue;
-        }
-
-        const decrypted =
-          hcChaCha20(
-            ciphertext,
-            key,
-            nonce,
-            1
-          );
-
-        const text =
-          decrypted.toString(
-            "utf8"
-          );
-
-        if (!text) {
-          continue;
-        }
-
-        // JKL new
-        const newResult =
-          hcJKL(
-            text,
-            true
-          );
-
-        if (
-          newResult !== text &&
-          hcPrintable(newResult)
-        ) {
-          return newResult;
-        }
-
-        // JKL old
-        const oldResult =
-          hcJKL(
-            text,
-            false
-          );
-
-        if (
-          oldResult !== text &&
-          hcPrintable(oldResult)
-        ) {
-          return oldResult;
-        }
-
-        // Plain decrypted result
-        if (
-          hcPrintable(
-            text,
-            true
-          ) &&
-          (
-            text.includes("HTTP") ||
-            text.includes("@") ||
-            text.includes(":") ||
-            text.includes("{")
-          )
-        ) {
-          return text;
-        }
-
-      } catch {
-        // Try next candidate/key
-      }
-    }
-  }
-
-  // ----------------------------------------------------------
-  // DIRECT JKL FALLBACK
-  // ----------------------------------------------------------
-
-  for (
-    const isNew of [
-      true,
-      false
-    ]
-  ) {
-    try {
-      const result =
-        hcJKL(
-          source,
-          isNew
-        );
-
-      if (
-        result !== source &&
-        hcPrintable(result)
-      ) {
-        return result;
-      }
-
-    } catch {}
-  }
-
-  return token;
-}
-
-// ============================================================
-// INITIAL XOR
-// ============================================================
-
-function hcInitial(
-  fileBytes
-) {
-  if (
-    !Buffer.isBuffer(fileBytes)
-  ) {
-    fileBytes =
+  try {
+    candidates.push(
       Buffer.from(
-        fileBytes || ""
-      );
-  }
-
-  const xorKey =
-    HC.initialXor;
-
-  if (
-    !xorKey ||
-    !xorKey.length
-  ) {
-    throw new Error(
-      "HC initialXor tidak tersedia"
+        original,
+        "latin1"
+      )
     );
+  } catch {}
+
+  try {
+    candidates.push(
+      Buffer.from(
+        original,
+        "utf8"
+      )
+    );
+  } catch {}
+
+  /*
+   * Try ChaCha20 + JKL.
+   */
+  for (const raw of candidates) {
+    if (!raw.length) continue;
+
+    if (
+      HC.keys &&
+      Array.isArray(HC.keys)
+    ) {
+      for (const keyValue of HC.keys) {
+        try {
+          const key =
+            Buffer.isBuffer(keyValue)
+              ? keyValue
+              : Buffer.from(
+                  keyValue
+                );
+
+          if (key.length !== 32) {
+            continue;
+          }
+
+          const nonce =
+            Buffer.isBuffer(HC.nonce)
+              ? HC.nonce
+              : Buffer.from(
+                  HC.nonce || Buffer.alloc(8)
+                );
+
+          if (nonce.length !== 8) {
+            continue;
+          }
+
+          const decrypted =
+            hcChaCha20(
+              raw,
+              key,
+              nonce,
+              0
+            );
+
+          if (
+            decrypted &&
+            decrypted.length
+          ) {
+            const utf8 =
+              decrypted.toString("utf8");
+
+            if (utf8.trim()) {
+              return utf8;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    /*
+     * ABC
+     */
+    const abc = hcABC(raw);
+
+    if (abc && abc.length) {
+      const text =
+        abc.toString("utf8");
+
+      if (text.trim()) {
+        return text;
+      }
+    }
   }
 
   /*
-   * File HC dibaca sebagai byte.
-   * Jangan mengubahnya menjadi UTF-8
-   * sebelum XOR karena byte > 0x7f
-   * bisa berubah.
+   * JKL fallback
    */
+  const jkl = hcJKL(original);
 
-  const out =
-    Buffer.alloc(
-      fileBytes.length
-    );
+  if (jkl && jkl.length) {
+    const text =
+      jkl.toString("utf8");
 
-  for (
-    let i = 0;
-    i < fileBytes.length;
-    i++
-  ) {
-    out[i] =
-      fileBytes[i] ^
-      xorKey[
-        i % xorKey.length
-      ];
+    if (text.trim()) {
+      return text;
+    }
   }
 
-  return out;
+  /*
+   * RST fallback
+   */
+  const rst = hcRST(original);
+
+  if (rst && rst.length) {
+    const text =
+      rst.toString("utf8");
+
+    if (text.trim()) {
+      return text;
+    }
+  }
+
+  return value;
 }
 
 // ============================================================
-// SAFE JSON
+// NOTE FINDER
 // ============================================================
 
-function hcTryJson(value) {
+function hcFindNote(source) {
+  if (
+    source === null ||
+    source === undefined
+  ) {
+    return null;
+  }
+
+  if (
+    typeof source !== "object"
+  ) {
+    return null;
+  }
+
+  const noteKeys = [
+    "note",
+    "configMessage",
+    "message",
+    "remark",
+    "description",
+    "configNote",
+    "notes",
+    "comment"
+  ];
+
+  /*
+   * Check direct fields first.
+   */
+  for (const key of noteKeys) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        source,
+        key
+      )
+    ) {
+      const value = source[key];
+
+      if (
+        typeof value === "string" &&
+        value.trim()
+      ) {
+        return value.trim();
+      }
+
+      if (
+        typeof value === "number" ||
+        typeof value === "boolean"
+      ) {
+        return String(value);
+      }
+    }
+  }
+
+  /*
+   * Search nested objects.
+   */
+  for (const [key, value] of Object.entries(source)) {
+    if (
+      value &&
+      typeof value === "object"
+    ) {
+      const found =
+        hcFindNote(value);
+
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return null;
+}
+
+// ============================================================
+// DECODE NOTE / CONFIG MESSAGE
+// ============================================================
+
+function hcDecodeNote(value) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return value;
+  }
+
   if (
     typeof value !== "string"
   ) {
     return value;
   }
 
-  const text =
-    value.trim();
+  const text = value.trim();
+
+  if (!text) {
+    return value;
+  }
+
+  /*
+   * Already readable.
+   */
+  const printable =
+    hcPrintable(text);
 
   if (
-    !text.startsWith("{") &&
-    !text.startsWith("[")
+    printable.length >= 2 &&
+    printable.length >=
+      text.length * 0.85
+  ) {
+    return text;
+  }
+
+  /*
+   * Base64 candidate.
+   */
+  try {
+    let padded = text;
+
+    while (
+      padded.length % 4 !== 0
+    ) {
+      padded += "=";
+    }
+
+    const raw =
+      Buffer.from(
+        padded,
+        "base64"
+      );
+
+    if (raw.length) {
+      const utf8 =
+        raw.toString("utf8");
+
+      if (
+        hcPrintable(utf8).length >=
+        utf8.length * 0.85
+      ) {
+        return utf8;
+      }
+    }
+  } catch {}
+
+  return value;
+}
+
+// ============================================================
+// RECURSIVE FIELD CLEANER
+// ============================================================
+
+function hcDecodeInnerFields(value) {
+  if (
+    value === null ||
+    value === undefined
   ) {
     return value;
   }
 
-  try {
-    return JSON.parse(text);
-  } catch {
+  if (Array.isArray(value)) {
+    return value.map(
+      hcDecodeInnerFields
+    );
+  }
+
+  if (
+    typeof value !== "object"
+  ) {
     return value;
+  }
+
+  const output = {};
+
+  for (const [key, val] of Object.entries(value)) {
+    let decoded = val;
+
+    const lower =
+      String(key).toLowerCase();
+
+    /*
+     * Fields that can contain Note.
+     */
+    if (
+      lower === "note" ||
+      lower === "configmessage" ||
+      lower === "message" ||
+      lower === "remark" ||
+      lower === "description" ||
+      lower === "confignote" ||
+      lower === "notes" ||
+      lower === "comment"
+    ) {
+      if (
+        typeof val === "string"
+      ) {
+        decoded =
+          hcDecodeNote(val);
+      }
+    }
+
+    /*
+     * Recursively process objects.
+     */
+    if (
+      decoded &&
+      typeof decoded === "object"
+    ) {
+      decoded =
+        hcDecodeInnerFields(decoded);
+    }
+
+    output[key] = decoded;
+  }
+
+  /*
+   * If configMessage exists,
+   * expose it as note too.
+   */
+  if (
+    !output.note &&
+    typeof output.configMessage ===
+      "string" &&
+    output.configMessage.trim()
+  ) {
+    output.note =
+      output.configMessage.trim();
+  }
+
+  return output;
+}
+
+// ============================================================
+// TOKEN PARSER
+// ============================================================
+
+function hcParseToken(token) {
+  if (
+    token === null ||
+    token === undefined
+  ) {
+    return null;
+  }
+
+  const text =
+    String(token).trim();
+
+  if (!text) {
+    return null;
+  }
+
+  /*
+   * Try JSON.
+   */
+  const json =
+    hcTryJson(text);
+
+  if (json) {
+    return json;
+  }
+
+  /*
+   * Z3A.
+   */
+  const z3a =
+    hcZ3A(text);
+
+  if (z3a) {
+    return z3a;
+  }
+
+  /*
+   * Braille.
+   */
+  const braille =
+    hcBraille(text);
+
+  if (
+    braille &&
+    braille !== text
+  ) {
+    return braille;
+  }
+
+  /*
+   * Credential.
+   */
+  const credential =
+    hcCredentials(text);
+
+  if (credential) {
+    return credential;
+  }
+
+  /*
+   * Decrypt field.
+   */
+  const decrypted =
+    hcDecryptField(text);
+
+  if (
+    decrypted !== text
+  ) {
+    const parsed =
+      hcTryJson(decrypted);
+
+    if (parsed) {
+      return parsed;
+    }
+
+    return decrypted;
+  }
+
+  return text;
+}
+
+// ============================================================
+// INITIAL XOR
+// ============================================================
+
+function hcInitial(data) {
+  try {
+    if (
+      !Buffer.isBuffer(data)
+    ) {
+      data =
+        Buffer.from(data);
+    }
+
+    const xorKey =
+      Buffer.isBuffer(HC.initialXor)
+        ? HC.initialXor
+        : Buffer.from(
+            HC.initialXor || ""
+          );
+
+    if (!xorKey.length) {
+      return Buffer.from(data);
+    }
+
+    const output =
+      Buffer.alloc(
+        data.length
+      );
+
+    for (
+      let i = 0;
+      i < data.length;
+      i++
+    ) {
+      output[i] =
+        data[i] ^
+        xorKey[i % xorKey.length];
+    }
+
+    return output;
+  } catch {
+    return null;
   }
 }
 
 // ============================================================
-// MAIN HC PARSER
+// MODERN PARSER
 // ============================================================
 
-function hcParseModern(
-  buffer
-) {
+function hcParseModern(input) {
+  let protections = {};
+
   try {
-    if (
-      !Buffer.isBuffer(buffer) ||
-      !buffer.length
-    ) {
-      return {
-        success: false,
-        error: "File HC kosong"
-      };
-    }
-
-    // ========================================================
-    // 1. INITIAL
-    // ========================================================
-
-    const initial =
-      hcInitial(buffer);
-
-    // ========================================================
-    // 2. OUTER ABC
-    // ========================================================
-
-    let outer = "";
-
-    // Coba key yang sama dengan
-    // implementasi sebelumnya.
-    if (
-      HC.keys &&
-      HC.keys[5]
-    ) {
-      outer =
-        hcABC(
-          initial.toString("utf8"),
-          HC.keys[5]
-        );
-    }
+    /*
+     * Accept Buffer / string / object.
+     */
+    let source = input;
 
     if (
-      !outer ||
-      !outer.trim().startsWith("{")
+      Buffer.isBuffer(source)
     ) {
-      return {
-        success: false,
-        error:
-          "Outer HC gagal didekripsi"
-      };
-    }
+      const initial =
+        hcInitial(source);
 
-    // ========================================================
-    // 3. JSON
-    // ========================================================
-
-    let obj;
-
-    try {
-      obj =
-        JSON.parse(
-          outer
-        );
-    } catch (e) {
-      return {
-        success: false,
-        error:
-          "JSON HC tidak valid: " +
-          e.message
-      };
-    }
-
-    if (
-      !obj ||
-      typeof obj !== "object" ||
-      Array.isArray(obj)
-    ) {
-      return {
-        success: false,
-        error:
-          "Struktur JSON HC tidak valid"
-      };
-    }
-
-    // ========================================================
-    // 4. CFG
-    // ========================================================
-
-    const cfg =
-      obj.cfg &&
-      typeof obj.cfg === "object"
-        ? obj.cfg
-        : {};
-
-    const isNew =
-      Object.prototype.hasOwnProperty.call(
-        cfg,
-        "content"
-      );
-
-    const meta = {};
-    const protections = {};
-
-    let target;
-    let delimiter;
-
-    // ========================================================
-    // NEW FORMAT
-    // ========================================================
-
-    if (isNew) {
-      for (
-        const [field, name] of [
-          ["b", "hwid"],
-          ["f", "area"]
-        ]
-      ) {
-        const value =
-          String(
-            obj[field] ??
-            cfg[field] ??
-            ""
-          );
-
-        if (value) {
-          meta[name] =
-            value;
-
-          protections[name] =
-            value;
-        }
+      if (initial) {
+        source =
+          initial.toString("utf8");
       }
-
-      target =
-        cfg.content;
-
-      delimiter =
-        "[splitConfig]";
     }
 
-    // ========================================================
-    // OLD FORMAT
-    // ========================================================
+    if (
+      typeof source === "string"
+    ) {
+      const parsed =
+        hcTryJson(source);
 
-    else {
-      const a =
-        obj.a &&
-        typeof obj.a === "object"
-          ? obj.a
-          : {};
-
-      for (
-        const [field, name] of [
-          ["bb", "hwid"],
-          ["e", "password"],
-          ["fe", "area"],
-          ["ed", "provider"]
-        ]
-      ) {
-        const value =
-          field === "e"
-            ? obj[field]
-            : a[field];
-
-        if (
-          value === null ||
-          value === undefined
-        ) {
-          continue;
-        }
-
-        const decrypted =
+      if (parsed) {
+        source = parsed;
+      } else {
+        const abc =
           hcABC(
-            String(value),
-            HC.keys[7]
+            Buffer.from(source)
           );
 
-        if (decrypted) {
-          meta[name] =
-            decrypted;
-
-          protections[name] =
-            decrypted;
-        }
-      }
-
-      target =
-        obj.xy ||
-        a.xy;
-
-      delimiter =
-        obj.uv ||
-        a.uv;
-    }
-
-    // ========================================================
-    // 5. VALIDATE
-    // ========================================================
-
-    if (
-      target === null ||
-      target === undefined ||
-      target === ""
-    ) {
-      return {
-        success: false,
-        error:
-          "Payload konfigurasi tidak ditemukan"
-      };
-    }
-
-    if (
-      delimiter === null ||
-      delimiter === undefined ||
-      delimiter === ""
-    ) {
-      return {
-        success: false,
-        error:
-          "Delimiter konfigurasi tidak ditemukan"
-      };
-    }
-
-    delimiter =
-      String(delimiter);
-
-    // ========================================================
-    // 6. DERIVED NONCE
-    // ========================================================
-
-    const toHex =
-      value =>
-        Buffer.from(
-          String(value || ""),
-          "utf8"
-        ).toString("hex");
-
-    const hwid =
-      meta.hwid;
-
-    const password =
-      meta.password;
-
-    const provider =
-      meta.provider;
-
-    const area =
-      meta.area;
-
-    let derived = "";
-
-    if (
-      hwid &&
-      !password &&
-      !provider &&
-      !area
-    ) {
-      derived =
-        toHex(hwid) +
-        toHex(hwid);
-    } else {
-      derived =
-        toHex(password) +
-        toHex(hwid) +
-        toHex(provider) +
-        toHex(area);
-    }
-
-    let dynNonce =
-      Buffer.from(
-        HC.nonce
-      );
-
-    if (
-      dynNonce.length !== 8
-    ) {
-      return {
-        success: false,
-        error:
-          "HC.nonce harus 8 byte"
-      };
-    }
-
-    if (derived) {
-      try {
-        const derivedBytes =
-          Buffer.from(
-            derived,
-            "hex"
-          );
-
-        const first8 =
-          derivedBytes.subarray(
-            0,
-            8
-          );
-
-        first8.copy(
-          dynNonce,
-          0,
-          0,
-          first8.length
-        );
-
-      } catch {}
-    }
-
-    // ========================================================
-    // 7. DECRYPT CONTENT
-    // ========================================================
-
-    let decryptedContent =
-      null;
-
-    // --------------------------------------------------------
-    // NEW
-    // --------------------------------------------------------
-
-    if (isNew) {
-      decryptedContent =
-        hcRST(
-          String(target)
-        );
-
-      // Fallback ABC
-      if (!decryptedContent) {
-        for (
-          const key of HC.keys || []
-        ) {
-          try {
-            const candidate =
-              hcABC(
-                String(target),
-                key
-              );
-
-            if (
-              candidate &&
-              candidate.includes(
-                delimiter
-              )
-            ) {
-              decryptedContent =
-                candidate;
-
-              break;
-            }
-          } catch {}
-        }
-      }
-    }
-
-    // --------------------------------------------------------
-    // OLD
-    // --------------------------------------------------------
-
-    else {
-      decryptedContent =
-        hcABC(
-          String(target),
-          HC.keys[1]
-        );
-    }
-
-    if (
-      !decryptedContent
-    ) {
-      return {
-        success: false,
-        error:
-          "Isi konfigurasi HC gagal didekripsi"
-      };
-    }
-
-    // ========================================================
-    // 8. SPLIT
-    // ========================================================
-
-    const tokens =
-      decryptedContent.split(
-        delimiter
-      );
-
-    if (!tokens.length) {
-      return {
-        success: false,
-        error:
-          "Token konfigurasi HC kosong"
-      };
-    }
-
-    // ========================================================
-    // 9. FIELD MAP
-    // ========================================================
-
-    const config = {};
-
-    for (
-      let index = 0;
-      index < tokens.length;
-      index++
-    ) {
-      /*
-       * Field tertentu memang bukan field
-       * konfigurasi yang perlu ditampilkan.
-       */
-      if (
-        index === 22 ||
-        index === 24
-      ) {
-        continue;
-      }
-
-      const label =
-        HC.tokenMap &&
-        HC.tokenMap[index]
-          ? HC.tokenMap[index]
-          : `field_${index}`;
-
-      let value =
-        tokens[index];
-
-      // ======================================================
-      // NEW FORMAT FIELD
-      // ======================================================
-
-      if (isNew) {
-        value =
-          hcDecryptField(
-            value,
-            dynNonce
-          );
-      }
-
-      // ======================================================
-      // OLD FORMAT FIELD
-      // ======================================================
-
-      else {
-        if (
-          typeof value === "string" &&
-          hcIsHex(value)
-        ) {
-          const abc =
-            hcABC(
-              value,
-              HC.keys[7],
-              dynNonce
+        if (abc) {
+          const json =
+            hcTryJson(
+              abc.toString("utf8")
             );
 
-          if (abc) {
-            value = abc;
+          if (json) {
+            source = json;
           }
         }
-
-        value =
-          hcJKL(
-            value,
-            false
-          );
       }
+    }
 
-      // ======================================================
-      // CLEAN
-      // ======================================================
+    if (
+      !source ||
+      typeof source !== "object"
+    ) {
+      throw new Error(
+        "HC data bukan object/JSON"
+      );
+    }
+
+    const isNew =
+      !!source.content ||
+      !!source.cfg ||
+      !!source.config;
+
+    /*
+     * ========================================================
+     * NEW FORMAT
+     * ========================================================
+     */
+
+    let content =
+      source.content ||
+      source.cfg?.content ||
+      source.config?.content ||
+      "";
+
+    if (
+      typeof content !== "string"
+    ) {
+      content =
+        JSON.stringify(content);
+    }
+
+    /*
+     * [splitConfig]
+     */
+    let parts =
+      content.split(
+        "[splitConfig]"
+      );
+
+    /*
+     * ========================================================
+     * OLD FORMAT
+     * ========================================================
+     */
+
+    if (
+      parts.length <= 1 &&
+      source.xy
+    ) {
+      content =
+        source.xy;
 
       if (
-        typeof value === "string"
+        typeof content !==
+        "string"
       ) {
-        value =
-          value.replace(
-            /88a05e8772eac3e5703e0cd26c6e6f23de72fb09f7ee5a43283d1681f19d/g,
-            ""
-          );
-
-        value =
-          value.trim();
-
-        value =
-          hcTryJson(value);
+        content =
+          JSON.stringify(content);
       }
 
-      // ======================================================
-      // CREDENTIALS
-      // ======================================================
+      parts =
+        content.split(
+          "[splitConfig]"
+        );
+    }
 
-      if (index === 7) {
-        value =
-          hcCredentials(
-            value,
-            true
-          );
-      }
-
-      else if (index === 11) {
-        value =
-          hcCredentials(
-            value,
-            false
-          );
-      }
-
-      // ======================================================
-      // SAVE
-      // ======================================================
+    /*
+     * Some HC versions use uv.
+     */
+    if (
+      parts.length <= 1 &&
+      source.uv
+    ) {
+      content =
+        source.uv;
 
       if (
-        value !== null &&
-        value !== undefined &&
-        value !== ""
+        typeof content !==
+        "string"
       ) {
-        /*
-         * Jangan menampilkan token hex
-         * mentah sebagai hasil decrypt.
-         */
+        content =
+          JSON.stringify(content);
+      }
+
+      parts =
+        content.split(
+          "[splitConfig]"
+        );
+    }
+
+    /*
+     * ========================================================
+     * DECRYPT / PARSE TOKENS
+     * ========================================================
+     */
+
+    const parsedParts = [];
+
+    for (
+      const part of parts
+    ) {
+      const token =
+        hcParseToken(part);
+
+      if (
+        token !== null &&
+        token !== undefined
+      ) {
+        parsedParts.push(token);
+      }
+    }
+
+    /*
+     * ========================================================
+     * BUILD CONFIG
+     * ========================================================
+     */
+
+    let config = {};
+
+    if (
+      parsedParts.length === 1 &&
+      parsedParts[0] &&
+      typeof parsedParts[0] ===
+        "object" &&
+      !Array.isArray(
+        parsedParts[0]
+      )
+    ) {
+      config =
+        parsedParts[0];
+    } else {
+      config = {
+        parts: parsedParts
+      };
+    }
+
+    /*
+     * Copy common HC metadata.
+     */
+    const metadataKeys = [
+      "name",
+      "version",
+      "type",
+      "remark",
+      "description",
+      "note",
+      "configMessage"
+    ];
+
+    for (
+      const key of metadataKeys
+    ) {
+      if (
+        source[key] !==
+        undefined &&
+        config[key] ===
+          undefined
+      ) {
+        config[key] =
+          source[key];
+      }
+    }
+
+    /*
+     * SSH credentials.
+     */
+    const sshCandidates = [
+      config.ssh,
+      config.SSH,
+      config.sshData,
+      config.server,
+      config.credentials
+    ];
+
+    for (
+      const candidate of
+      sshCandidates
+    ) {
+      if (
+        typeof candidate ===
+        "string"
+      ) {
+        const ssh =
+          hcCredentials(
+            candidate
+          );
+
         if (
-          !(
-            typeof value === "string" &&
-            hcIsHex(value)
-          )
+          ssh &&
+          ssh.host
         ) {
-          config[label] =
-            value;
+          config.ssh = ssh;
+          break;
+        }
+      }
+
+      if (
+        candidate &&
+        typeof candidate ===
+          "object"
+      ) {
+        if (
+          candidate.host ||
+          candidate.hostname
+        ) {
+          config.ssh = {
+            ...candidate
+          };
+
+          if (
+            !config.ssh.host &&
+            config.ssh.hostname
+          ) {
+            config.ssh.host =
+              config.ssh.hostname;
+          }
+
+          break;
         }
       }
     }
 
-    // ========================================================
-    // 10. SSH
-    // ========================================================
+    /*
+     * ========================================================
+     * RECURSIVE DECODE
+     * ========================================================
+     */
 
-    if (
-      config.sshField !==
-        null &&
-      config.sshField !==
-        undefined
-    ) {
-      const ssh =
-        hcCredentials(
-          config.sshField,
-          true
-        );
+    config =
+      hcDecodeInnerFields(
+        config
+      );
 
-      const match =
-        String(ssh).match(
-          /^([^:]+):(\d+)@(.+):(.+)$/
-        );
+    /*
+     * ========================================================
+     * NOTE
+     * ========================================================
+     */
 
-      if (match) {
-        config.ssh = {
-          host: match[1],
-          port: match[2],
-          username: match[3],
-          password: match[4]
-        };
-      }
+    const note =
+      hcFindNote(config);
+
+    if (note) {
+      config.note = note;
     }
 
-    // ========================================================
-    // 11. RETURN
-    // ========================================================
+    /*
+     * ========================================================
+     * PROTECTIONS
+     * ========================================================
+     */
+
+    if (
+      source.lock !== undefined
+    ) {
+      protections.lock =
+        source.lock;
+    }
+
+    if (
+      source.configLock !==
+      undefined
+    ) {
+      protections.configLock =
+        source.configLock;
+    }
+
+    if (
+      source.protection !==
+      undefined
+    ) {
+      protections.protection =
+        source.protection;
+    }
+
+    /*
+     * ========================================================
+     * RESULT
+     * ========================================================
+     */
 
     return {
       success: true,
+
       format: isNew
         ? "new"
         : "old",
 
       config,
 
+      /*
+       * Note tersedia langsung
+       * di root result.
+       */
+      note:
+        note || null,
+
       protections,
 
-      raw: decryptedContent
+      raw:
+        typeof input === "string"
+          ? input
+          : Buffer.isBuffer(input)
+          ? input.toString("utf8")
+          : source
     };
-
   } catch (error) {
     return {
       success: false,
       error:
         error?.message ||
-        "HC decrypt error"
+        "HC decrypt failed",
+      config: null,
+      note: null,
+      protections
     };
   }
 }
 
 // ============================================================
-// EXPORT
+// MAIN HC DECRYPT
 // ============================================================
 
-module.exports = hcParseModern;
+function decryptHC(input) {
+  try {
+    if (
+      input === null ||
+      input === undefined
+    ) {
+      return {
+        success: false,
+        error: "HC input kosong",
+        config: null,
+        note: null
+      };
+    }
+
+    /*
+     * Buffer
+     */
+    if (
+      Buffer.isBuffer(input)
+    ) {
+      return hcParseModern(
+        input
+      );
+    }
+
+    /*
+     * String
+     */
+    if (
+      typeof input === "string"
+    ) {
+      const text =
+        input.trim();
+
+      if (!text) {
+        return {
+          success: false,
+          error: "HC input kosong",
+          config: null,
+          note: null
+        };
+      }
+
+      /*
+       * Direct JSON.
+       */
+      const json =
+        hcTryJson(text);
+
+      if (json) {
+        return hcParseModern(
+          json
+        );
+      }
+
+      /*
+       * Base64.
+       */
+      try {
+        const decoded =
+          Buffer.from(
+            text,
+            "base64"
+          );
+
+        if (
+          decoded.length > 0
+        ) {
+          const result =
+            hcParseModern(
+              decoded
+            );
+
+          if (
+            result &&
+            result.success
+          ) {
+            return result;
+          }
+        }
+      } catch {}
+
+      /*
+       * Direct parser.
+       */
+      return hcParseModern(
+        text
+      );
+    }
+
+    /*
+     * Object
+     */
+    if (
+      typeof input === "object"
+    ) {
+      return hcParseModern(
+        input
+      );
+    }
+
+    return {
+      success: false,
+      error:
+        "Format HC tidak didukung",
+      config: null,
+      note: null
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error?.message ||
+        "HC decrypt error",
+      config: null,
+      note: null
+    };
+  }
+}
+
+// ============================================================
+// EXPORTS
+// ============================================================
+
+module.exports = {
+  decryptHC,
+  hcParseModern,
+
+  hcInitial,
+  hcChaCha20,
+  hcABC,
+  hcZ3A,
+  hcBraille,
+  hcCredentials,
+  hcJKL,
+  hcRST,
+  hcDecryptField,
+
+  hcFindNote,
+  hcDecodeNote,
+  hcDecodeInnerFields,
+
+  hcParseToken,
+  hcTryJson,
+  hcPrintable,
+  hcCleanHex,
+  hcIsHex
+};
